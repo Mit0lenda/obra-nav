@@ -12,6 +12,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import QuickSummary from "./QuickSummary";
+import { useUnreadCount } from "@/data/mockNotifications";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -28,7 +29,7 @@ export default function AppSidebar() {
   const collapsed = state === "collapsed";
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
-
+  const { data: unread = 0 } = useUnreadCount();
   return (
     <Sidebar collapsible="icon" className={collapsed ? "w-14" : "w-64"}>
       <div className="px-3 py-3 border-b">
@@ -53,7 +54,16 @@ export default function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && (
+                        <span className="inline-flex items-center gap-2">
+                          {item.title}
+                          {item.title === "Central de Notificações" && unread > 0 && (
+                            <span className="ml-2 rounded-full bg-primary/10 text-primary text-[10px] px-1.5 py-0.5">
+                              {unread}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

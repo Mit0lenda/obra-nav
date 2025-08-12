@@ -10,6 +10,7 @@ export type Task = {
   kanbanEntryDate: Date;
   completionDate: Date;
   specifications?: string;
+  obra: string;
 };
 
 export type WorkReport = {
