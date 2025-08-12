@@ -1,11 +1,11 @@
 import { AppNotification, NotificationPriority } from "@/data/mockNotifications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Package, FileText, Check, Trash2 } from "lucide-react";
+import { AlertTriangle, Package, FileText, Check, Trash2, CheckSquare, XCircle } from "lucide-react";
 import { fmtDateTime } from "@/lib/date";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export default function NotificationCard({ n, onMarkRead, onRemove }: { n: AppNotification; onMarkRead: () => void; onRemove: () => void }) {
+export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, onReject }: { n: AppNotification; onMarkRead: () => void; onRemove: () => void; onApprove?: () => void; onReject?: () => void }) {
   const colorByCat: Record<AppNotification["category"], string> = {
     "Solicitação de materiais": "border-[hsl(var(--material))] bg-[hsl(var(--material-light))]",
     "Informe de Progresso": "border-[hsl(var(--progress))] bg-[hsl(var(--progress-light))]",
@@ -16,10 +16,15 @@ export default function NotificationCard({ n, onMarkRead, onRemove }: { n: AppNo
     Média: "bg-[hsl(var(--report))] text-[hsl(var(--report-foreground))]",
     Baixa: "bg-[hsl(var(--progress))] text-[hsl(var(--progress-foreground))]",
   };
+  const statusColor: Record<AppNotification["status"], string> = {
+    Pendente: "border",
+    Aprovada: "bg-[hsl(var(--progress))] text-[hsl(var(--progress-foreground))]",
+    Rejeitada: "bg-[hsl(var(--problem))] text-[hsl(var(--problem-foreground))]",
+  };
   const Icon = n.category === "Solicitação de materiais" ? Package : n.category === "Informe de Progresso" ? FileText : AlertTriangle;
 
   return (
-    <article className={`rounded-lg border-l-4 ${colorByCat[n.category]} p-3 animate-fade-in`}> 
+    <article className={`rounded-lg border-l-4 ${colorByCat[n.category]} p-3 animate-fade-in`}>
       <header className="flex items-start gap-3">
         <Icon className="h-5 w-5 text-primary mt-0.5" />
         <div className="flex-1">
@@ -28,15 +33,36 @@ export default function NotificationCard({ n, onMarkRead, onRemove }: { n: AppNo
             <Badge variant="outline">{n.category}</Badge>
             <Badge className={prColor[n.priority]}>Prioridade: {n.priority}</Badge>
             <Badge variant="secondary">{n.obra}</Badge>
+            <Badge className={statusColor[n.status]}>{n.status}</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">{n.description}</p>
           <div className="text-xs text-muted-foreground mt-1">{fmtDateTime(n.timestamp)}</div>
         </div>
         <div className="flex items-center gap-2">
+          {onApprove && n.status !== "Aprovada" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" onClick={onApprove} aria-label="Aprovar notificação">
+                  <CheckSquare className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Aprovar</TooltipContent>
+            </Tooltip>
+          )}
+          {onReject && n.status !== "Rejeitada" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="outline" onClick={onReject} aria-label="Rejeitar notificação">
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Rejeitar</TooltipContent>
+            </Tooltip>
+          )}
           {!n.isRead && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="secondary" onClick={onMarkRead}>
+                <Button size="sm" variant="secondary" onClick={onMarkRead} aria-label="Marcar como lida">
                   <Check className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -45,7 +71,7 @@ export default function NotificationCard({ n, onMarkRead, onRemove }: { n: AppNo
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" variant="outline" onClick={onRemove}>
+              <Button size="sm" variant="outline" onClick={onRemove} aria-label="Excluir notificação">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>

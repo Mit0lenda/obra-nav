@@ -1,6 +1,6 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fmtDateTime } from "@/lib/date";
-
+import { apiCreateTaskFromNotification, apiAddApprovalToFeed, taskKeys, feedKeys } from "@/data/mockFeed";
 export type NotificationCategory =
   | "Solicitação de materiais"
   | "Informe de Progresso"
@@ -17,6 +17,7 @@ export type AppNotification = {
   isRead: boolean;
   sender: string;
   obra: string;
+  status: "Pendente" | "Aprovada" | "Rejeitada";
 };
 
 const LS_KEY = "nexium_notifications_v1";
@@ -32,6 +33,7 @@ const seed: AppNotification[] = [
     isRead: false,
     sender: "Almoxarifado",
     obra: "Residencial Vista Verde",
+    status: "Pendente",
   },
   {
     id: "n2",
@@ -43,6 +45,7 @@ const seed: AppNotification[] = [
     isRead: false,
     sender: "Fiscalização",
     obra: "Edifício Central",
+    status: "Pendente",
   },
   {
     id: "n3",
@@ -54,6 +57,7 @@ const seed: AppNotification[] = [
     isRead: true,
     sender: "Engenharia",
     obra: "Residencial Vista Verde",
+    status: "Pendente",
   },
 ];
 
@@ -161,6 +165,59 @@ export function useRemoveNotification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiRemove(id),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: notificationsKeys.root }),
+        qc.invalidateQueries({ queryKey: notificationsKeys.unread }),
+      ]);
+    },
+  });
+}
+
+export async function apiApproveNotification(id: string) {
+  const list = load();
+  const idx = list.findIndex((n) => n.id === id);
+  if (idx < 0) return delay(false);
+  const n = list[idx];
+  list[idx] = { ...n, status: "Aprovada" };
+  save(list);
+  // Side effects: create task when applicable and add to feed as approval event
+  await Promise.allSettled([
+    apiCreateTaskFromNotification(n as any),
+    apiAddApprovalToFeed(n as any),
+  ]);
+  return delay(true);
+}
+
+export async function apiRejectNotification(id: string) {
+  const list = load();
+  const idx = list.findIndex((n) => n.id === id);
+  if (idx < 0) return delay(false);
+  list[idx].status = "Rejeitada";
+  save(list);
+  return delay(true);
+}
+
+export function useApproveNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiApproveNotification(id),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: notificationsKeys.root }),
+        qc.invalidateQueries({ queryKey: notificationsKeys.unread }),
+        qc.invalidateQueries({ queryKey: taskKeys.root }),
+        qc.invalidateQueries({ queryKey: taskKeys.obras }),
+        qc.invalidateQueries({ queryKey: feedKeys.root }),
+      ]);
+    },
+  });
+}
+
+export function useRejectNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiRejectNotification(id),
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: notificationsKeys.root }),

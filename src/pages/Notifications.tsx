@@ -13,6 +13,8 @@ import {
   useMarkRead,
   useRemoveNotification,
   useMarkAllRead,
+  useApproveNotification,
+  useRejectNotification,
 } from "@/data/mockNotifications";
 import { useState, useMemo } from "react";
 import { toast } from "@/components/ui/sonner";
@@ -28,6 +30,8 @@ export default function Notifications() {
   const markRead = useMarkRead();
   const removeN = useRemoveNotification();
   const markAll = useMarkAllRead();
+  const approveN = useApproveNotification();
+  const rejectN = useRejectNotification();
 
   const filtered = useMemo(() => {
     return list.filter((n) => {

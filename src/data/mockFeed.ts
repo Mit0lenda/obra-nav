@@ -148,7 +148,7 @@ export type TaskStatus = "A Fazer" | "Em Andamento" | "Concluído";
 export async function apiListTasks() {
   return delay(getTasks());
 }
-export const taskKeys = { root: ["tasks"] as const };
+export const taskKeys = { root: ["tasks"] as const, obras: ["tasks-obras"] as const };
 export function useTasks() {
   return useQuery({ queryKey: taskKeys.root, queryFn: apiListTasks });
 }
@@ -172,6 +172,7 @@ export function useMoveTask() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: taskKeys.root }),
         qc.invalidateQueries({ queryKey: feedKeys.root }),
+        qc.invalidateQueries({ queryKey: taskKeys.obras }),
       ]);
     },
   });
@@ -184,4 +185,56 @@ export function apiGetReportById(id: string) {
 export function apiGetProgressByReportId(reportId: string) {
   const updates = getProgressUpdates().filter((p) => p.reportId === reportId);
   return delay(updates);
+}
+
+// ——— Extensions for integrations ———
+import type { AppNotification } from "@/data/mockNotifications";
+
+export async function apiCreateTaskFromNotification(n: AppNotification) {
+  const mapType: Record<AppNotification["category"], Task["type"] | null> = {
+    "Solicitação de materiais": "Solicitação de materiais",
+    "Informe de Progresso": null,
+    "Notificação de problemas/inconformidades": "Problemas",
+  };
+  const tType = mapType[n.category];
+  if (!tType) return null;
+  const tasks = getTasks();
+  const id = `t_${Date.now()}`;
+  const newTask: Task & { status: TaskStatus } = {
+    id,
+    type: tType,
+    title: n.title,
+    description: n.description,
+    priority: n.priority,
+    kanbanEntryDate: new Date(),
+    completionDate: new Date(),
+    status: "A Fazer",
+    obra: n.obra,
+  };
+  tasks.unshift(newTask);
+  setTasks(tasks);
+  return delay(newTask);
+}
+
+export async function apiAddApprovalToFeed(n: AppNotification) {
+  const progress = getProgressUpdates();
+  const id = `appr_${Date.now()}`;
+  progress.unshift({
+    id,
+    reportId: "approval",
+    description: `Notificação aprovada: ${n.title} (${n.category})`,
+    milestone: "Aprovação",
+    date: new Date(),
+  });
+  setProgress(progress);
+  return delay(true);
+}
+
+export async function apiObrasFromTasks() {
+  const tasks = getTasks();
+  const obras = Array.from(new Set(tasks.map((t) => t.obra).filter(Boolean))).sort();
+  return delay(obras);
+}
+export function useObrasFromTasks() {
+  return useQuery({ queryKey: taskKeys.obras, queryFn: apiObrasFromTasks });
 }
