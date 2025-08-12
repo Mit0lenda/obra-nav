@@ -121,6 +121,14 @@ export default function Notifications() {
                   n={n}
                   onMarkRead={async () => { await markRead.mutateAsync(n.id); toast.success("Marcada como lida"); }}
                   onRemove={async () => { await removeN.mutateAsync(n.id); toast.info("Notificação removida"); }}
+                  onApprove={async () => {
+                    await approveN.mutateAsync(n.id);
+                    toast.success("Notificação aprovada e enviada ao Kanban");
+                  }}
+                  onReject={async () => {
+                    await rejectN.mutateAsync(n.id);
+                    toast.warning("Notificação rejeitada");
+                  }}
                 />
               ))
             )}

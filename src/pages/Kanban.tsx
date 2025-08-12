@@ -7,12 +7,13 @@ import { useTasks, useMoveTask } from "@/data/mockFeed";
 import { useMemo, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { AlertTriangle, Package, Check, RotateCcw } from "lucide-react";
+import { useObraScope } from "@/app/obraScope";
 
 export default function Kanban() {
   const { data: tasks = [], isLoading } = useTasks();
   const move = useMoveTask();
   const [tab, setTab] = useState<'geral' | 'materiais'>('geral');
-  const [obra, setObra] = useState<string>('todas');
+  const { obra: obraScope, setObra } = useObraScope();
   const [priority, setPriority] = useState<string>('todas');
 
   const obrasOptions = useMemo(() => {
@@ -22,9 +23,9 @@ export default function Kanban() {
 
   const filtered = useMemo(() => {
     return tasks.filter((t: any) => (tab === 'materiais' ? t.type === 'Solicitação de materiais' : true))
-      .filter((t: any) => (obra === 'todas' ? true : t.obra === obra))
+      .filter((t: any) => (obraScope === 'todas' ? true : t.obra === obraScope))
       .filter((t: any) => (priority === 'todas' ? true : t.priority === priority));
-  }, [tasks, tab, obra, priority]);
+  }, [tasks, tab, obraScope, priority]);
 
   const byStatus = useMemo(() => {
     return {
@@ -101,7 +102,7 @@ export default function Kanban() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select value={obra} onValueChange={setObra}>
+          <Select value={obraScope} onValueChange={setObra}>
             <SelectTrigger><SelectValue placeholder="Obra" /></SelectTrigger>
             <SelectContent>
               {obrasOptions.map((o) => (
