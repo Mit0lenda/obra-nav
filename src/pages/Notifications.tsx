@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KanbanSquare, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NotificationCard from "@/components/notifications/NotificationCard";
+import { useObraScope } from "@/app/obraScope";
 import {
   useNotifications,
   useObrasFromNotifications,
