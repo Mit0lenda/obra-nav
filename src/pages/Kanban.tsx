@@ -2,11 +2,12 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useTasks, useMoveTask } from "@/data/mockFeed";
 import { useMemo, useState, useEffect } from "react";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Package, Check, RotateCcw, Timer } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
 
@@ -18,6 +19,25 @@ export default function Kanban() {
   const [priority, setPriority] = useState<string>('todas');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [slaToastShown, setSlaToastShown] = useState(false);
+  const { toast } = useToast();
+
+  const resetFilters = () => {
+    setPriority('todas');
+    setOverdueOnly(false);
+  };
+
+  const LS_KANBAN = 'nexium_kanban_filters_v1';
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(LS_KANBAN) || '{}');
+      if (s.tab) setTab(s.tab);
+      if (typeof s.priority === 'string') setPriority(s.priority);
+      if (typeof s.overdueOnly === 'boolean') setOverdueOnly(s.overdueOnly);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(LS_KANBAN, JSON.stringify({ tab, priority, overdueOnly }));
+  }, [tab, priority, overdueOnly]);
 
   const SLA_HOURS: Record<string, number> = { Alta: 24, Média: 72, Baixa: 120 };
   const hoursSince = (d: any) => Math.floor((Date.now() - new Date(d).getTime()) / 3600000);
@@ -84,14 +104,14 @@ export default function Kanban() {
     return (
       <div className={`rounded-lg border-l-4 p-3 animate-fade-in ${bgCls} ${hl}`}>
         <div className="flex items-start gap-3">
-          <Icon className="h-5 w-5 text-primary mt-0.5" />
+          <Icon className="h-5 w-5 text-primary mt-0.5" aria-hidden="true" focusable="false" />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-medium leading-tight truncate">{t.title}</h3>
               <span className="text-xs px-2 py-0.5 rounded-md border">{t.type}</span>
               <Badge variant="outline">Prioridade: {t.priority}</Badge>
               <span className={`text-xs px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${overdue ? 'border-[hsl(var(--problem))] text-[hsl(var(--problem))]' : ''}`} aria-label={`Idade ${fmtAge(ageH)} e SLA ${slaH} horas`}>
-                <Timer className="h-3 w-3" /> {fmtAge(ageH)} / {slaH}h
+                <Timer className="h-3 w-3" aria-hidden="true" focusable="false" /> {fmtAge(ageH)} / {slaH}h
               </span>
               {overdue && (
                 <span className="text-xs px-2 py-0.5 rounded-md border bg-[hsl(var(--problem-light))] border-[hsl(var(--problem))]">Vencido</span>
@@ -157,12 +177,12 @@ export default function Kanban() {
         </div>
 
         {(['A Fazer', 'Em Andamento', 'Concluído'] as const).map((col) => (
-          <section key={col} className="rounded-lg border p-3">
+          <section key={col} className="rounded-lg border p-3" role="region" aria-label={`Coluna ${col}`}> 
             <div className="font-medium mb-2">{col}</div>
             {isLoading ? (
-              <div className="text-sm text-muted-foreground">Carregando…</div>
+              <LoadingPlaceholder rows={3} />
             ) : byStatus[col].length === 0 ? (
-              <div className="text-sm text-muted-foreground">Sem cartões.</div>
+              <EmptyState message="Sem cartões." actionLabel="Limpar filtros" onAction={resetFilters} />
             ) : (
               <div className="space-y-2">
                 {byStatus[col].map((t) => (

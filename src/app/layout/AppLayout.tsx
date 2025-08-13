@@ -1,13 +1,33 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./Sidebar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useObrasFromTasks } from "@/data/mockFeed";
 import { useObraScope } from "@/app/obraScope";
+import { useEffect } from "react";
 
 export default function AppLayout() {
   const { data: obrasTasks = [] } = useObrasFromTasks();
   const { obra, setObra } = useObraScope();
+  const navigate = useNavigate();
+  useEffect(() => {
+    let awaitingKey: string | null = null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'g') {
+        awaitingKey = 'g';
+        return;
+      }
+      if (awaitingKey === 'g') {
+        if (e.key === 'n') navigate('/notifications');
+        if (e.key === 'k') navigate('/kanban');
+        if (e.key === 'i') navigate('/inventory');
+        awaitingKey = null;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate]);
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background text-foreground">
