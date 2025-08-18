@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAddMovement, useInventory } from "@/data/mockInventory";
 import { useMemo, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
+import { addAuditEntry } from "@/components/shared/AuditLog";
 
 export default function BaixaManual() {
   const { data: inv = [] } = useInventory();
@@ -24,6 +25,15 @@ export default function BaixaManual() {
       materialId,
       mov: { tipo: 'Baixa', quantidade: -value, motivo: `${motivo}${obs ? ' — ' + obs : ''}`, usuario: 'Operador' },
     });
+    
+    addAuditEntry({
+      user: "Usuário Atual",
+      action: "baixa_manual",
+      details: `Baixa manual: ${value} ${selected?.unidade || ''} de ${selected?.material || ''} - ${motivo}`,
+      entityType: "inventory",
+      entityId: materialId,
+    });
+    
     toast({ title: 'Baixa registrada', description: `${value} ${selected?.unidade || ''} de ${selected?.material || ''}` });
     setQtd("");
     setObs("");

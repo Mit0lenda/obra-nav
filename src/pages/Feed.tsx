@@ -1,38 +1,83 @@
 import PageHeader from "@/components/shared/PageHeader";
 import { useFeedItems } from "@/data/mockFeed";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, FileText, Package, TrendingUp } from "lucide-react";
+import { AlertTriangle, FileText, Package, TrendingUp, Search } from "lucide-react";
 import { fmtDate, fmtDateTime } from "@/lib/date";
 import { useNavigate } from "react-router-dom";
+import { useObraScope } from "@/app/obraScope";
+import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function Feed() {
   const { data: items = [], isLoading } = useFeedItems();
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [type, setType] = useState("all");
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const navigate = useNavigate();
+  const { obra: obraScope } = useObraScope();
+
+  // Debounce search query
+  const debouncedSetSearch = useDebounce((value: string) => {
+    setDebouncedQ(value);
+  }, 300);
+
+  useEffect(() => {
+    debouncedSetSearch(q);
+  }, [q, debouncedSetSearch]);
+
+  // Persist filters
+  const LS_FEED = 'nexium_feed_filters_v1';
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(LS_FEED) || '{}');
+      if (s.type) setType(s.type);
+      if (s.order) setOrder(s.order);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(LS_FEED, JSON.stringify({ type, order }));
+  }, [type, order]);
 
   const filtered = useMemo(() => {
     const arr = items
       .filter((i) => (type === "all" ? true : i.type === (type as any)))
       .filter((i) => {
+        // Filter by obra scope
+        const obra = (i.data as any)?.obra;
+        return obraScope === "todas" || obra === obraScope;
+      })
+      .filter((i) => {
+        if (!debouncedQ) return true;
         const text = JSON.stringify(i.data).toLowerCase();
-        return !q || text.includes(q.toLowerCase());
+        return text.includes(debouncedQ.toLowerCase());
       })
       .sort((a, b) => (order === "desc" ? b.date.getTime() - a.date.getTime() : a.date.getTime() - b.date.getTime()));
     return arr;
-  }, [items, q, type, order]);
+  }, [items, debouncedQ, type, order, obraScope]);
+
+  const resetFilters = () => {
+    setQ("");
+    setType("all");
+    setOrder("desc");
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Feed de Registros" subtitle="Tarefas, relatórios e progresso" />
+      <PageHeader 
+        title="Feed de Registros" 
+        subtitle={`Tarefas, relatórios e progresso ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
+      />
 
       <div className="rounded-lg border p-3 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Input placeholder="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="relative">
+            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input placeholder="Buscar..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
+          </div>
           <Select value={type} onValueChange={setType}>
             <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
             <SelectContent>
@@ -51,13 +96,22 @@ export default function Feed() {
           </Select>
         </div>
         {(q || type !== "all") && (
-          <div className="text-xs text-muted-foreground">Encontrados: {filtered.length} <Button variant="link" className="px-1" onClick={() => { setQ(""); setType("all"); }}>Limpar filtros</Button></div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            Encontrados: {filtered.length} 
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={resetFilters}>
+              Limpar filtros
+            </Button>
+          </div>
         )}
 
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Carregando…</div>
+          <LoadingPlaceholder rows={3} />
         ) : filtered.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Nenhum item.</div>
+          <EmptyState 
+            message="Nenhum item encontrado" 
+            actionLabel="Limpar filtros" 
+            onAction={resetFilters} 
+          />
         ) : (
           <div className="space-y-2">
             {filtered.map((it) => {

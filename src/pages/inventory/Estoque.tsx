@@ -8,19 +8,40 @@ import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
 import { useInventory, useMovements, obrasOptions, categoriaOptions, InventoryItem } from "@/data/mockInventory";
 import { fmtDate, fmtDateTime } from "@/lib/date";
-import { ArrowUpDown, History } from "lucide-react";
+import { ArrowUpDown, History, Search } from "lucide-react";
+import { useObraScope } from "@/app/obraScope";
+import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function Estoque() {
   const navigate = useNavigate();
   const { data: items = [], isLoading } = useInventory();
+  const { obra: obraScope } = useObraScope();
 
   type SortKey = 'quantidade' | 'ultimaMov';
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [obra, setObra] = useState<(typeof obrasOptions)[number]>("Todas as obras");
   const [cat, setCat] = useState<(typeof categoriaOptions)[number]>("Todos");
   const [sortBy, setSortBy] = useState<SortKey>('quantidade');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [dialogId, setDialogId] = useState<string | null>(null);
+
+  // Debounce search
+  const debouncedSetSearch = useDebounce((value: string) => {
+    setDebouncedQ(value);
+  }, 300);
+
+  useEffect(() => {
+    debouncedSetSearch(q);
+  }, [q, debouncedSetSearch]);
+
+  // Sync with global obra scope
+  useEffect(() => {
+    if (obraScope !== "todas" && obrasOptions.includes(obraScope as any)) {
+      setObra(obraScope as any);
+    }
+  }, [obraScope]);
 
   // persist filters
   useEffect(() => {
@@ -42,7 +63,7 @@ export default function Estoque() {
 
   const filtered = useMemo(() => {
     let arr = items as InventoryItem[];
-    if (q) arr = arr.filter((i) => i.material.toLowerCase().includes(q.toLowerCase()));
+    if (debouncedQ) arr = arr.filter((i) => i.material.toLowerCase().includes(debouncedQ.toLowerCase()));
     if (obra !== 'Todas as obras') arr = arr.filter((i) => i.obra === obra);
     if (cat !== 'Todos') arr = arr.filter((i) => i.categoria === cat);
     arr = [...arr].sort((a, b) => {
@@ -52,7 +73,13 @@ export default function Estoque() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return arr;
-  }, [items, q, obra, cat, sortBy, sortDir]);
+  }, [items, debouncedQ, obra, cat, sortBy, sortDir]);
+
+  const resetFilters = () => {
+    setQ('');
+    setObra('Todas as obras');
+    setCat('Todos');
+  };
 
   const selected = filtered.find((i) => i.id === dialogId) || items.find((i) => i.id === dialogId) || null;
   const { data: movements = [], isLoading: loadingMov } = useMovements(dialogId || "");
@@ -75,7 +102,7 @@ export default function Estoque() {
     <div className="space-y-4">
       <PageHeader
         title="Controle de Estoque"
-        subtitle="Materiais em estoque e movimentações"
+        subtitle={`Materiais em estoque e movimentações ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`}
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => navigate('/inventory/entrada-xml')}>Nova Entrada</Button>
@@ -87,7 +114,8 @@ export default function Estoque() {
       <div className="rounded-lg border p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="relative">
-            <Input placeholder="Buscar material" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input placeholder="Buscar material" value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
           </div>
           <Select value={obra} onValueChange={(v) => setObra(v as any)}>
             <SelectTrigger><SelectValue placeholder="Obra" /></SelectTrigger>
@@ -106,22 +134,31 @@ export default function Estoque() {
             </SelectContent>
           </Select>
           <div className="flex gap-2">
-            <Button variant="outline" className="w-full" onClick={() => { setQ(''); setObra('Todas as obras'); setCat('Todos'); }}>Limpar filtros</Button>
+            <Button variant="outline" className="w-full" onClick={resetFilters}>Limpar filtros</Button>
           </div>
         </div>
+
+        {(q || obra !== 'Todas as obras' || cat !== 'Todos') && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            Encontrados: {filtered.length} 
+            <Button variant="link" size="sm" className="h-auto p-0" onClick={resetFilters}>
+              Limpar filtros
+            </Button>
+          </div>
+        )}
 
         <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Material</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => sortToggle('quantidade')}>
+                <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('quantidade')} tabIndex={0} aria-label="Ordenar por quantidade">
                   <div className="inline-flex items-center gap-1">Quantidade <ArrowUpDown className="h-4 w-4" /></div>
                 </TableHead>
                 <TableHead>Unidade</TableHead>
                 <TableHead>Obra</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => sortToggle('ultimaMov')}>
+                <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
                   <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
                 </TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -129,9 +166,17 @@ export default function Estoque() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-4"><LoadingPlaceholder rows={1} /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-sm text-muted-foreground">Nenhum material encontrado.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-4">
+                    <EmptyState 
+                      message="Nenhum material encontrado" 
+                      actionLabel="Limpar filtros" 
+                      onAction={resetFilters} 
+                    />
+                  </TableCell>
+                </TableRow>
               ) : (
                 filtered.map((i) => (
                   <TableRow key={i.id}>

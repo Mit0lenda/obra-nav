@@ -17,8 +17,10 @@ import {
   useApproveNotification,
   useRejectNotification,
 } from "@/data/mockNotifications";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "@/components/ui/sonner";
+import { useDebounce } from "@/hooks/use-debounce";
+import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -26,7 +28,25 @@ export default function Notifications() {
   const { data: obras = [] } = useObrasFromNotifications();
   const [obra, setObra] = useState<string>("Todas");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [tab, setTab] = useState<string>("Todas");
+  const { obra: obraScope } = useObraScope();
+
+  // Debounce search
+  const debouncedSetSearch = useDebounce((value: string) => {
+    setDebouncedQuery(value);
+  }, 300);
+
+  useEffect(() => {
+    debouncedSetSearch(query);
+  }, [query, debouncedSetSearch]);
+
+  // Sync with global obra scope
+  useEffect(() => {
+    if (obraScope !== "todas") {
+      setObra(obraScope);
+    }
+  }, [obraScope]);
 
   const markRead = useMarkRead();
   const removeN = useRemoveNotification();
@@ -41,12 +61,18 @@ export default function Notifications() {
         n.category === tab;
       const byObra = obra === "Todas" || n.obra === obra;
       const byQuery =
-        !query ||
-        n.title.toLowerCase().includes(query.toLowerCase()) ||
-        n.description.toLowerCase().includes(query.toLowerCase());
+        !debouncedQuery ||
+        n.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        n.description.toLowerCase().includes(debouncedQuery.toLowerCase());
       return byTab && byObra && byQuery;
     });
-  }, [list, obra, query, tab]);
+  }, [list, obra, debouncedQuery, tab]);
+
+  const resetFilters = () => {
+    setQuery("");
+    setObra("Todas");
+    setTab("Todas");
+  };
 
   const counts = useMemo(() => ({
     Todas: list.filter((n) => !n.isRead).length,
@@ -59,7 +85,7 @@ export default function Notifications() {
     <div className="space-y-4">
       <PageHeader
         title="Central de Notificações"
-        subtitle="Filtros por obra, prioridade e categoria"
+        subtitle={`Filtros por obra, prioridade e categoria ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`}
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => navigate("/kanban")}> 
@@ -85,7 +111,7 @@ export default function Notifications() {
           </div>
           <div className="md:w-64">
             <Select value={obra} onValueChange={setObra}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Filtrar por Obra">
                 <SelectValue placeholder="Filtrar por Obra" />
               </SelectTrigger>
               <SelectContent>
@@ -97,7 +123,12 @@ export default function Notifications() {
             </Select>
           </div>
           {(obra !== "Todas" || query) && (
-            <Badge variant="secondary" className="md:ml-auto">Total: {filtered.length}</Badge>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground md:ml-auto">
+              Total: {filtered.length}
+              <Button variant="link" size="sm" className="h-auto p-0" onClick={resetFilters}>
+                Limpar filtros
+              </Button>
+            </div>
           )}
         </div>
 
@@ -110,11 +141,15 @@ export default function Notifications() {
               </TabsTrigger>
             ))}
           </TabsList>
-          <TabsContent value={tab} className="space-y-2">
+          <TabsContent value={tab} className="space-y-2" role="tabpanel" aria-labelledby={`tab-${tab}`}>
             {isLoading ? (
-              <div className="text-sm text-muted-foreground">Carregando…</div>
+              <LoadingPlaceholder rows={3} />
             ) : filtered.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Nenhuma notificação.</div>
+              <EmptyState 
+                message="Nenhuma notificação encontrada" 
+                actionLabel="Limpar filtros" 
+                onAction={resetFilters} 
+              />
             ) : (
               filtered.map((n) => (
                 <NotificationCard

@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useState, useMemo } from "react";
 import { useAddMovement, useInventory } from "@/data/mockInventory";
 import { toast } from "@/components/ui/use-toast";
+import { addAuditEntry } from "@/components/shared/AuditLog";
 
 const LS_XML_KEYS = 'nexium_xml_keys_v1';
 
@@ -83,6 +84,15 @@ export default function EntradaXML() {
       });
     });
     await Promise.all(ops);
+    
+    addAuditEntry({
+      user: "Usuário Atual",
+      action: "entrada_xml",
+      details: `Entrada XML: ${preview.chave} - ${preview.fornecedor} - Total ${currencyBR(totalGeral)}`,
+      entityType: "inventory",
+      entityId: preview.chave,
+    });
+    
     localStorage.setItem(LS_XML_KEYS, JSON.stringify([...keys, preview.chave]));
     toast({ title: 'Entrada confirmada', description: `Total ${currencyBR(totalGeral)} registrado. Estoque atualizado.` });
     setPreview(null);
