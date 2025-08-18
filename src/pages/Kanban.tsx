@@ -10,6 +10,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Package, Check, RotateCcw, Timer } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
+import { addAuditEntry } from "@/components/shared/AuditLog";
 
 export default function Kanban() {
   const { data: tasks = [], isLoading } = useTasks();
@@ -75,8 +76,17 @@ export default function Kanban() {
   }, [filtered, isLoading, slaToastShown]);
 
   const handleMove = (id: string, status: 'A Fazer' | 'Em Andamento' | 'Concluído') => {
+    const task = filtered.find(t => t.id === id);
     move.mutate({ id, status }, {
       onSuccess: () => {
+        addAuditEntry({
+          user: "Usuário Atual",
+          action: "move_task",
+          details: `Moveu tarefa "${task?.title}" para ${status}`,
+          entityType: "task",
+          entityId: id,
+        });
+        
         if (status === 'Concluído') {
           toast({ title: 'Tarefa concluída', description: 'Movida para Concluído e refletida no Feed.' });
         } else if (status === 'A Fazer') {

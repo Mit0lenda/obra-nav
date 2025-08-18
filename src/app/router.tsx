@@ -13,6 +13,7 @@ import Relatorios from "@/pages/inventory/Relatorios";
 import MapPage from "@/pages/Map";
 import Report from "@/pages/Report";
 import NotFound from "@/pages/NotFound";
+import SystemLog from "@/pages/SystemLog";
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       },
       { path: "map", element: <MapPage /> },
       { path: "report/:id", element: <Report /> },
+      { path: "system-log", element: <SystemLog /> },
       { path: "*", element: <NotFound /> },
     ],
   },

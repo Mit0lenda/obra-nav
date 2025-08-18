@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useObrasFromTasks } from "@/data/mockFeed";
 import { useObraScope } from "@/app/obraScope";
 import { useEffect } from "react";
+import GlobalSearch from "@/components/shared/GlobalSearch";
+import { Badge } from "@/components/ui/badge";
 
 export default function AppLayout() {
   const { data: obrasTasks = [] } = useObrasFromTasks();
@@ -37,6 +39,7 @@ export default function AppLayout() {
             <SidebarTrigger className="mr-1" />
             <h1 className="text-sm font-medium text-muted-foreground">Nexium — Gestão de Obras</h1>
             <div className="ml-auto flex items-center gap-3">
+              <GlobalSearch />
               <div className="w-56">
                 <Select value={obra} onValueChange={setObra}>
                   <SelectTrigger aria-label="Escopo de Obra">
@@ -50,6 +53,11 @@ export default function AppLayout() {
                   </SelectContent>
                 </Select>
               </div>
+              {obra !== "todas" && (
+                <Badge variant="secondary" className="text-xs">
+                  Escopo: {obra}
+                </Badge>
+              )}
               <span className="text-xs text-success">● Sistema Online</span>
             </div>
           </header>

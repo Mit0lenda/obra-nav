@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Construction, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon } from "lucide-react";
+import { LayoutDashboard, Construction, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +22,7 @@ const items = [
   { title: "Kanban de Tarefas", url: "/kanban", icon: KanbanSquare },
   { title: "Controle de Estoque", url: "/inventory", icon: Boxes },
   { title: "Mapa das Obras", url: "/map", icon: MapIcon },
+  { title: "Log do Sistema", url: "/system-log", icon: Activity },
 ];
 
 export default function AppSidebar() {

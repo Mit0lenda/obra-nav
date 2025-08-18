@@ -4,8 +4,46 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Package, FileText, Check, Trash2, CheckSquare, XCircle } from "lucide-react";
 import { fmtDateTime } from "@/lib/date";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { addAuditEntry } from "@/components/shared/AuditLog";
 
 export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, onReject }: { n: AppNotification; onMarkRead: () => void; onRemove: () => void; onApprove?: () => void; onReject?: () => void }) {
+  
+  const handleMarkRead = () => {
+    addAuditEntry({
+      user: "Usuário Atual",
+      action: "mark_read",
+      details: `Marcou como lida: ${n.title}`,
+      entityType: "notification",
+      entityId: n.id,
+    });
+    onMarkRead();
+  };
+
+  const handleApprove = () => {
+    if (onApprove) {
+      addAuditEntry({
+        user: "Usuário Atual", 
+        action: "approve",
+        details: `Aprovou notificação: ${n.title} (${n.category})`,
+        entityType: "notification",
+        entityId: n.id,
+      });
+      onApprove();
+    }
+  };
+
+  const handleReject = () => {
+    if (onReject) {
+      addAuditEntry({
+        user: "Usuário Atual",
+        action: "reject", 
+        details: `Rejeitou notificação: ${n.title}`,
+        entityType: "notification",
+        entityId: n.id,
+      });
+      onReject();
+    }
+  };
   const colorByCat: Record<AppNotification["category"], string> = {
     "Solicitação de materiais": "border-[hsl(var(--material))] bg-[hsl(var(--material-light))]",
     "Informe de Progresso": "border-[hsl(var(--progress))] bg-[hsl(var(--progress-light))]",
@@ -42,7 +80,7 @@ export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, o
           {onApprove && n.status !== "Aprovada" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" onClick={onApprove} aria-label="Aprovar notificação">
+                <Button size="sm" onClick={handleApprove} aria-label="Aprovar notificação">
                   <CheckSquare className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -52,7 +90,7 @@ export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, o
           {onReject && n.status !== "Rejeitada" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="outline" onClick={onReject} aria-label="Rejeitar notificação">
+                <Button size="sm" variant="outline" onClick={handleReject} aria-label="Rejeitar notificação">
                   <XCircle className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -62,7 +100,7 @@ export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, o
           {!n.isRead && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="secondary" onClick={onMarkRead} aria-label="Marcar como lida">
+                <Button size="sm" variant="secondary" onClick={handleMarkRead} aria-label="Marcar como lida">
                   <Check className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
