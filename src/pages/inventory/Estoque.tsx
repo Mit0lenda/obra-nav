@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FixedSizeList as List } from "react-window";
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
 import { useInventory, useMovements, obrasOptions, categoriaOptions, InventoryItem } from "@/data/mockInventory";
@@ -147,56 +148,107 @@ export default function Estoque() {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('quantidade')} tabIndex={0} aria-label="Ordenar por quantidade">
-                  <div className="inline-flex items-center gap-1">Quantidade <ArrowUpDown className="h-4 w-4" /></div>
-                </TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Obra</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
-                  <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
-                </TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-4"><LoadingPlaceholder rows={1} /></TableCell></TableRow>
-              ) : filtered.length === 0 ? (
+        {filtered.length > 100 ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-4">
-                    <EmptyState 
-                      message="Nenhum material encontrado" 
-                      actionLabel="Limpar filtros" 
-                      onAction={resetFilters} 
-                    />
-                  </TableCell>
+                  <TableHead>Material</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('quantidade')} tabIndex={0} aria-label="Ordenar por quantidade">
+                    <div className="inline-flex items-center gap-1">Quantidade <ArrowUpDown className="h-4 w-4" /></div>
+                  </TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Obra</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
+                    <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
+                  </TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((i) => (
-                  <TableRow key={i.id}>
-                    <TableCell className="font-medium">{i.material}</TableCell>
-                    <TableCell>{i.quantidade}</TableCell>
-                    <TableCell>{i.unidade}</TableCell>
-                    <TableCell>{i.obra}</TableCell>
-                    <TableCell><StatusBadge status={i.status} /></TableCell>
-                    <TableCell>{fmtDate(new Date(i.ultimaMov))}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => setDialogId(i.id)}>
-                        <History className="h-4 w-4 mr-1" /> Histórico
-                      </Button>
+              </TableHeader>
+            </Table>
+            <div className="h-96 overflow-hidden">
+              <List
+                height={384}
+                itemCount={filtered.length}
+                itemSize={60}
+                itemData={filtered}
+              >
+                {({ index, style, data }) => {
+                  const item = data[index];
+                  return (
+                    <div style={style} className="flex items-center px-4 border-b border-border hover:bg-muted/50">
+                      <div className="flex-1 grid grid-cols-7 gap-4 py-2">
+                        <div className="font-medium truncate">{item.material}</div>
+                        <div>{item.quantidade}</div>
+                        <div>{item.unidade}</div>
+                        <div>{item.obra}</div>
+                        <div><StatusBadge status={item.status} /></div>
+                        <div>{fmtDate(new Date(item.ultimaMov))}</div>
+                        <div className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => setDialogId(item.id)}>
+                            <History className="h-4 w-4 mr-1" /> Histórico
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
+              </List>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Material</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('quantidade')} tabIndex={0} aria-label="Ordenar por quantidade">
+                    <div className="inline-flex items-center gap-1">Quantidade <ArrowUpDown className="h-4 w-4" /></div>
+                  </TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Obra</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
+                    <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
+                  </TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-4"><LoadingPlaceholder rows={1} /></TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-4">
+                      <EmptyState 
+                        message="Nenhum material encontrado" 
+                        actionLabel="Limpar filtros" 
+                        onAction={resetFilters} 
+                      />
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ) : (
+                  filtered.map((i) => (
+                    <TableRow key={i.id}>
+                      <TableCell className="font-medium">{i.material}</TableCell>
+                      <TableCell>{i.quantidade}</TableCell>
+                      <TableCell>{i.unidade}</TableCell>
+                      <TableCell>{i.obra}</TableCell>
+                      <TableCell><StatusBadge status={i.status} /></TableCell>
+                      <TableCell>{fmtDate(new Date(i.ultimaMov))}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" onClick={() => setDialogId(i.id)}>
+                          <History className="h-4 w-4 mr-1" /> Histórico
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <Dialog open={!!dialogId} onOpenChange={(o) => !o && setDialogId(null)}>
