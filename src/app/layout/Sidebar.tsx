@@ -16,7 +16,7 @@ import { useUnreadCount } from "@/data/mockNotifications";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Obras em Andamento", url: "/projects", icon: Construction },
+  { title: "Obras em Andamento", url: "/obras-em-andamento", icon: Construction },
   { title: "Central de Notificações", url: "/notifications", icon: Bell },
   { title: "Feed de Registros", url: "/feed", icon: ListOrdered },
   { title: "Kanban de Tarefas", url: "/kanban", icon: KanbanSquare },

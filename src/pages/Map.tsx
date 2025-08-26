@@ -1,133 +1,107 @@
+import { useCallback, useState } from 'react';
 import PageHeader from "@/components/shared/PageHeader";
-import { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { mockMapWorks } from "@/data/mockMap";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, ExternalLink } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
+import { mockMapWorks } from "@/data/mockMap";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMap } from '../features/map/hooks/useMapbox';
+import { useCesiumMap } from '../features/map/hooks/useCesiumMap';
+import { useMapData } from '../features/map/hooks/useMapData';
+import { MapError } from '../features/map/components/MapError';
+import { MapFallback } from '../features/map/components/MapFallback';
+import "mapbox-gl/dist/mapbox-gl.css";
+import 'cesium/Build/Cesium/Widgets/widgets.css';
+import '@/styles/cesium.css';
 
 export default function MapPage() {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
   const navigate = useNavigate();
-  const [hasMapToken, setHasMapToken] = useState(false);
   const { obra: obraScope } = useObraScope();
+  const [is3D, setIs3D] = useState(false);
+  
+  // Get filtered map data
+  const { works, isLoading } = useMapData({
+    works: mockMapWorks,
+    scopeFilter: obraScope
+  });
 
-  // Filter works by obra scope
-  const filteredWorks = obraScope === "todas" 
-    ? mockMapWorks 
-    : mockMapWorks.filter(w => w.nome === obraScope);
+  // Handle marker clicks
+  const handleMarkerClick = useCallback((workId: string) => {
+    navigate('/obras-em-andamento');
+  }, [navigate]);
 
-  useEffect(() => {
-    if (!ref.current) return;
-    
-    const token = process.env.MAPBOX_ACCESS_TOKEN || "MAPBOX_TOKEN_AQUI";
-    
-    try {
-      mapboxgl.accessToken = token;
-      setHasMapToken(true);
-      
-      mapRef.current = new mapboxgl.Map({
-        container: ref.current,
-        style: "mapbox://styles/mapbox/light-v11",
-        center: [-51.9253, -14.2350],
-        zoom: 3.2,
-      });
+  // Initialize map
+  // Use o hook apropriado baseado no modo 3D
+  const { error: error2D } = useMap({
+    containerId: 'map-container-2d',
+    works,
+    onMarkerClick: handleMarkerClick,
+    is3D: false
+  });
 
-      mapRef.current.on('load', () => {
-        filteredWorks.forEach((w) => {
-          // Color by progress status
-          const markerColor = w.progresso <= 30 ? "#f59e0b" : w.progresso >= 80 ? "#10b981" : "#3b82f6";
-          
-          const popup = new mapboxgl.Popup({ offset: 8 }).setHTML(`
-            <div class="space-y-1">
-              <div class="font-medium">${w.nome}</div>
-              <div class="text-sm text-muted-foreground">Andamento: ${w.progresso}%</div>
-              <button id="goto-${w.id}" class="text-sm underline story-link">Ver detalhes</button>
-            </div>
-          `);
-          
-          const marker = new mapboxgl.Marker({ color: markerColor })
-            .setLngLat(w.coords)
-            .setPopup(popup)
-            .addTo(mapRef.current!);
-            
-          marker.getElement().setAttribute('title', w.nome);
-          marker.getElement().setAttribute('aria-label', `Obra ${w.nome}, progresso ${w.progresso}%`);
-          
-          // Navigate on popup button click
-          popup.on('open', () => {
-            const btn = document.getElementById(`goto-${w.id}`);
-            btn?.addEventListener('click', (e) => {
-              e.preventDefault();
-              navigate('/projects');
-            });
-          });
-        });
-      });
-    } catch (_e) {
-      setHasMapToken(false);
-    }
+  const { error: error3D } = useCesiumMap({
+    containerId: 'map-container-3d',
+    works,
+    onMarkerClick: handleMarkerClick
+  });
 
-    return () => {
-      mapRef.current?.remove();
-    };
-  }, [navigate, filteredWorks]);
+  const error = is3D ? error3D : error2D;
+
+  if (error) {
+    return <MapError error={error} works={works} onProjectClick={() => navigate('/projects')} />;
+  }
 
   return (
     <div className="space-y-4">
-      <PageHeader 
-        title="Mapa das Obras" 
-        subtitle={`Visualize obras no mapa ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
-      />
+      <div className="flex justify-between items-center">
+        <PageHeader 
+          title="Mapa das Obras" 
+          subtitle={`Visualize obras no mapa ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
+        />
+        
+        <div className="flex items-center gap-2">
+          <span className="text-sm">Modo 3D</span>
+          <Switch
+            checked={is3D}
+            onCheckedChange={setIs3D}
+            aria-label="Alternar modo 3D"
+          />
+        </div>
+      </div>
       
-      {hasMapToken ? (
-        <div ref={ref} className="h-[70vh] w-full rounded-lg border" />
-      ) : (
+      {isLoading ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Mapa indisponível
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Token do Mapbox não configurado. Aqui estão as obras disponíveis:
-            </p>
-            <div className="grid gap-3">
-              {filteredWorks.map((w) => {
-                const statusColor = w.progresso <= 30 ? "warning" : w.progresso >= 80 ? "success" : "default";
-                return (
-                  <div key={w.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">{w.nome}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Coords: {w.coords[1].toFixed(4)}, {w.coords[0].toFixed(4)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={statusColor as any}>{w.progresso}%</Badge>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => navigate('/projects')}
-                        aria-label={`Ver detalhes da obra ${w.nome}`}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <CardContent className="p-6">
+            <Skeleton className="h-[70vh] w-full" />
           </CardContent>
         </Card>
+      ) : works.length > 0 ? (
+        <>
+          <div 
+            id="map-container-2d" 
+            className={`h-[70vh] w-full rounded-lg border ${is3D ? 'hidden' : ''}`} 
+          />
+          <div 
+            id="map-container-3d" 
+            className={`h-[70vh] w-full rounded-lg border ${!is3D ? 'hidden' : ''}`} 
+          />
+        </>
+      ) : (
+        <MapFallback />
       )}
+      
+      {/* Quick actions */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIs3D(!is3D)}
+        >
+          {is3D ? 'Voltar para 2D' : 'Ver em 3D'}
+        </Button>
+      </div>
     </div>
   );
 }

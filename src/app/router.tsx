@@ -1,7 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import Index from "@/pages/Index";
-import Projects from "@/pages/Projects";
+
+import ObrasEmAndamento from "@/pages/ObrasEmAndamento";
 import Notifications from "@/pages/Notifications";
 import Feed from "@/pages/Feed";
 import Kanban from "@/pages/Kanban";
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <Index /> },
-      { path: "projects", element: <Projects /> },
+      { path: "obras-em-andamento", element: <ObrasEmAndamento /> },
       { path: "notifications", element: <Notifications /> },
       { path: "feed", element: <Feed /> },
       { path: "kanban", element: <Kanban /> },
