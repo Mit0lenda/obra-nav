@@ -3,27 +3,19 @@ import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { MapWork } from '@/data/mockMap';
 
-// Função auxiliar para gerar imagem do marcador
-const createMarkerImage = (progress: number): HTMLCanvasElement => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 40;
-  canvas.height = 40;
-  const ctx = canvas.getContext('2d')!;
-
-  // Desenhar círculo
-  ctx.beginPath();
-  ctx.arc(20, 20, 15, 0, Math.PI * 2);
-  ctx.fillStyle = progress <= 30 ? '#f59e0b' : progress >= 80 ? '#10b981' : '#3b82f6';
-  ctx.fill();
-
-  // Adicionar texto do progresso
-  ctx.fillStyle = 'white';
-  ctx.font = '12px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${progress}%`, 20, 20);
-
-  return canvas;
+// Função auxiliar para gerar imagem do marcador em SVG
+const createMarkerImage = (progress: number): string => {
+  const color = progress <= 30 ? '#f59e0b' : progress >= 80 ? '#10b981' : '#3b82f6';
+  const svgString = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="15" fill="${color}" stroke="white" stroke-width="2"/>
+      <text x="20" y="20" font-size="12" font-family="Arial" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">
+        ${progress}%
+      </text>
+    </svg>
+  `;
+  
+  return 'data:image/svg+xml;base64,' + btoa(svgString);
 };
 
 interface UseCesiumMapProps {
@@ -53,45 +45,81 @@ export function useCesiumMap({ containerId, works, onMarkerClick }: UseCesiumMap
         // Configure o token do Cesium
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkZjEzYmI0Yi1mY2FiLTQ5MTUtOGIwNi0xNjJlMjkyNDNiYjciLCJpZCI6MjE5MjM2LCJpYXQiOjE3NTYxNjUwNzZ9.g2-5VkiofCY4cfiLGtPzrNaFWqkVHWtBnUBfnw39GW0';
 
-        // Inicialize o visualizador Cesium
+        // Inicialize o visualizador Cesium com configurações otimizadas
         viewerRef.current = new Cesium.Viewer(container, {
           baseLayerPicker: false,
           geocoder: false,
           homeButton: false,
           navigationHelpButton: false,
-          sceneModePicker: true,
+          sceneModePicker: false,
           timeline: false,
           animation: false,
-          scene3DOnly: true
+          scene3DOnly: true,
+          selectionIndicator: false,
+          infoBox: false,
+          fullscreenButton: false,
+          contextOptions: {
+            webgl: {
+              alpha: true,
+              preserveDrawingBuffer: true
+            }
+          }
         });
 
+        // Configurações adicionais para melhor performance
+        if (viewerRef.current.scene) {
+          viewerRef.current.scene.globe.enableLighting = false;
+          viewerRef.current.scene.fog.enabled = false;
+          viewerRef.current.scene.globe.showGroundAtmosphere = false;
+        }
+
         // Configurar terreno 3D
-        const worldTerrain = await Cesium.createWorldTerrainAsync();
+        const worldTerrain = await Cesium.createWorldTerrainAsync({
+          requestWaterMask: true,
+          requestVertexNormals: true
+        });
+        
         if (mounted && viewerRef.current) {
           viewerRef.current.terrainProvider = worldTerrain;
+          viewerRef.current.scene.globe.enableLighting = true;
+          viewerRef.current.scene.globe.maximumScreenSpaceError = 2;
+          viewerRef.current.scene.fog.enabled = true;
+          viewerRef.current.scene.fog.density = 0.0001;
+          viewerRef.current.scene.skyAtmosphere.show = true;
+          viewerRef.current.scene.globe.show = true;
         }
 
         // Configurar imagem de satélite
         const imageryLayer = await Cesium.createWorldImageryAsync();
+        
         if (mounted && viewerRef.current) {
           viewerRef.current.imageryLayers.addImageryProvider(imageryLayer);
-        }
-
-        // Configurar a visualização
-        if (mounted && viewerRef.current) {
+          viewerRef.current.scene.globe.baseColor = Cesium.Color.WHITE;
+          
+          // Melhorar a qualidade da renderização
+          viewerRef.current.scene.postProcessStages.fxaa.enabled = true;
           viewerRef.current.scene.globe.enableLighting = true;
-          viewerRef.current.scene.globe.maximumScreenSpaceError = 2;
-          viewerRef.current.scene.skyAtmosphere.show = true;
           
           // Ajustar a visualização inicial para o Brasil
-          viewerRef.current.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(-51.9253, -14.2350, 3000000),
+          viewerRef.current.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(-51.9253, -14.2350, 3000000.0),
             orientation: {
-              heading: Cesium.Math.toRadians(0),
+              heading: 0.0,
               pitch: Cesium.Math.toRadians(-45),
-              roll: 0
+              roll: 0.0
             }
           });
+          
+          // Habilitar iluminação e melhorar visualização
+          viewerRef.current.scene.globe.enableLighting = true;
+          viewerRef.current.scene.globe.maximumScreenSpaceError = 2;
+          viewerRef.current.scene.globe.show = true;
+          
+          // Configurar cena para melhor visualização 3D
+          viewerRef.current.scene.debugShowFramesPerSecond = true;
+          viewerRef.current.scene.fog.enabled = true;
+          viewerRef.current.scene.fog.density = 0.0001;
+          viewerRef.current.scene.skyAtmosphere.show = true;
 
           setIsLoaded(true);
         }
@@ -101,14 +129,20 @@ export function useCesiumMap({ containerId, works, onMarkerClick }: UseCesiumMap
           if (!mounted || !viewerRef.current) return;
 
           // Criar entidade para cada obra
+          const pinBuilder = new Cesium.PinBuilder();
+          const markerUrl = getMarkerImage(work.progresso);
+          
           const entity = viewerRef.current.entities.add({
             name: work.nome,
             position: Cesium.Cartesian3.fromDegrees(work.coords[0], work.coords[1]),
             billboard: {
-              image: getMarkerImage(work.progresso),
+              image: markerUrl,
               verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
               heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-              scale: 0.5
+              scale: 1.0,
+              disableDepthTestDistance: 0,
+              pixelOffset: new Cesium.Cartesian2(0, -10),
+              eyeOffset: new Cesium.Cartesian3(0, 0, -10)
             },
             description: `
               <div style="padding: 10px;">

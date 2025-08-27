@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 // Tipos
 type BaseTask = {
@@ -85,7 +84,8 @@ const mockGeneralTasks: Task[] = [
     respo: "Eng. Pedro Santos",
     area: "Estrutural",
     descricao: "Reforço estrutural nas vigas do térreo após identificação de fissuras."
-  }
+  },
+  // ... outros serviços
 ];
 
 const mockMaterialTasks: Task[] = [
@@ -101,7 +101,8 @@ const mockMaterialTasks: Task[] = [
     recebido: "",
     qtd: "50 metros",
     descricao: "Tubo PVC 100mm Classe A"
-  }
+  },
+  // ... outros materiais
 ];
 
 // Componente de Diálogo para Nova Tarefa
@@ -139,7 +140,123 @@ function NewTaskDialog({ onSubmit, taskType }: { onSubmit: (data: NewTaskData) =
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... resto do formulário ... */}
+          <div className="grid w-full gap-2">
+            <Label htmlFor="descricao">Descrição</Label>
+            <Textarea
+              id="descricao"
+              required
+              value={formData.descricao}
+              onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid w-full gap-2">
+              <Label htmlFor="solicitado">Solicitado por</Label>
+              <Input
+                id="solicitado"
+                required
+                value={formData.solicitado}
+                onChange={(e) => setFormData(prev => ({ ...prev, solicitado: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid w-full gap-2">
+              <Label htmlFor="respo">Responsável</Label>
+              <Input
+                id="respo"
+                required
+                value={formData.respo}
+                onChange={(e) => setFormData(prev => ({ ...prev, respo: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid w-full gap-2">
+              <Label htmlFor="obra">Obra</Label>
+              <Select 
+                value={formData.obra}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, obra: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a obra" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Edifício Central">Edifício Central</SelectItem>
+                  <SelectItem value="Residencial Vista Verde">Residencial Vista Verde</SelectItem>
+                  <SelectItem value="Condomínio Parque">Condomínio Parque</SelectItem>
+                  <SelectItem value="Residencial Sol Nascente">Residencial Sol Nascente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid w-full gap-2">
+              <Label htmlFor="prazo">Prazo</Label>
+              <Input
+                id="prazo"
+                type="date"
+                required
+                value={formData.prazo}
+                onChange={(e) => setFormData(prev => ({ ...prev, prazo: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {taskType === 'servico' ? (
+            <div className="grid w-full gap-2">
+              <Label htmlFor="area">Área</Label>
+              <Select 
+                value={formData.area}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, area: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a área" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Estrutural">Estrutural</SelectItem>
+                  <SelectItem value="Hidráulica">Hidráulica</SelectItem>
+                  <SelectItem value="Elétrica">Elétrica</SelectItem>
+                  <SelectItem value="Acabamento">Acabamento</SelectItem>
+                  <SelectItem value="Segurança">Segurança</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="grid w-full gap-2">
+              <Label htmlFor="qtd">Quantidade</Label>
+              <Input
+                id="qtd"
+                required
+                value={formData.qtd}
+                onChange={(e) => setFormData(prev => ({ ...prev, qtd: e.target.value }))}
+              />
+            </div>
+          )}
+
+          <div className="grid w-full gap-2">
+            <Label htmlFor="priority">Nível de Urgência</Label>
+            <Select 
+              value={formData.priority}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="crítico">Crítico</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="média">Média</SelectItem>
+                <SelectItem value="baixa">Baixa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit">Criar Tarefa</Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -153,60 +270,11 @@ export default function Kanban() {
   const [materialTasks, setMaterialTasks] = useState<Task[]>(mockMaterialTasks);
   const [activeObra, setActiveObra] = useState("Edifício Central");
 
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const { source, destination } = result;
-
-    // Se moveu para a mesma coluna e mesma posição
-    if (source.droppableId === destination.droppableId &&
-        source.index === destination.index) {
-      return;
-    }
-
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    const tasks = activeTab === 'general' ? generalTasks : materialTasks;
-
-    // Cria uma cópia do array de tarefas
-    const updatedTasks = Array.from(tasks);
-    const sourceColumn = tasks.filter(t => t.status === source.droppableId);
-    const [removed] = sourceColumn.splice(source.index, 1);
-    
-    // Atualiza o status da tarefa
-    const updatedTask = { ...removed, status: destination.droppableId };
-
-    // Encontra o índice correto na lista completa
-    const taskIndex = updatedTasks.findIndex(t => t.id === removed.id);
-    updatedTasks[taskIndex] = updatedTask;
-
-    setTasks(updatedTasks);
-  };
-
   const moveTask = (taskId: number, newStatus: string) => {
     const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
     setTasks(tasks => tasks.map(task =>
       task.id === taskId ? { ...task, status: newStatus } : task
     ));
-  };
-
-  const editTask = (taskId: number, updatedData: Partial<Task>) => {
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    setTasks(tasks => tasks.map(task => {
-      if (task.id === taskId) {
-        const updatedTask = { ...task, ...updatedData };
-        if (task.tipo === 'servico') {
-          return updatedTask as ServiceTask;
-        } else {
-          return updatedTask as MaterialTask;
-        }
-      }
-      return task;
-    }));
-  };
-
-  const deleteTask = (taskId: number) => {
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    setTasks(tasks => tasks.filter(task => task.id !== taskId));
   };
 
   const filteredTasks = (activeTab === 'general' ? generalTasks : materialTasks)
@@ -303,79 +371,41 @@ export default function Kanban() {
         </div>
 
         {/* Kanban Board */}
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-full overflow-x-auto">
-            {(['A FAZER', 'EM ANDAMENTO', 'EM ANÁLISE', 'CONCLUÍDO'] as const).map((status) => (
-              <Droppable key={status} droppableId={status}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`bg-white rounded-lg shadow-sm ${getColumnHeaderColor(status)} ${
-                      snapshot.isDraggingOver ? 'bg-blue-50 ring-2 ring-blue-200' : ''
-                    } min-h-[200px] flex flex-col transition-colors duration-200 ease-in-out`}
-                  >
-                    <div className="p-4 border-b border-gray-100">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-sm font-semibold text-gray-900">{status}</h2>
-                        <Badge variant="outline" className="text-xs">
-                          {columns[status].length}
-                        </Badge>
-                      </div>
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {(['A FAZER', 'EM ANDAMENTO', 'EM ANÁLISE', 'CONCLUÍDO'] as const).map((status) => (
+            <div key={status} className={`bg-white rounded-lg shadow-sm ${getColumnHeaderColor(status)}`}>
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-900">{status}</h2>
+                  <Badge variant="outline" className="text-xs">
+                    {columns[status].length}
+                  </Badge>
+                </div>
+              </div>
 
-                    <div className="p-4 flex-1 overflow-y-auto max-h-[calc(100vh-250px)]">
-                      {columns[status].length === 0 ? (
-                        <div className="rounded-lg border-2 border-dashed border-gray-200 p-4 h-full min-h-[200px] flex items-center justify-center">
-                          <p className="text-sm text-center text-gray-500">
-                            Sem itens
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 min-w-[250px]">
-                          {columns[status].map((task, index) => (
-                            <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  style={{
-                                    ...provided.draggableProps.style,
-                                    opacity: snapshot.isDragging ? 0.95 : 1,
-                                    transform: `${provided.draggableProps.style?.transform || ''} ${snapshot.isDragging ? 'rotate(2deg)' : ''}`,
-                                    zIndex: snapshot.isDragging ? 100 : 1,
-                                    transformOrigin: 'center',
-                                    boxShadow: snapshot.isDragging ? '0 10px 20px rgba(0, 0, 0, 0.1)' : 'none',
-                                    transition: snapshot.isDragging ? 'none' : 'all 0.2s ease'
-                                  }}
-                                  className={`${
-                                    snapshot.isDragging 
-                                      ? 'shadow-lg ring-2 ring-blue-200 bg-white' 
-                                      : 'transition-all duration-200'
-                                  } rounded-lg`}
-                                >
-                                  <KanbanCard
-                                    task={task}
-                                    status={status}
-                                    onMove={moveTask}
-                                    onEdit={editTask}
-                                    onDelete={deleteTask}
-                                  />
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                        </div>
-                      )}
-                      {provided.placeholder}
-                    </div>
+              <div className="p-4">
+                {columns[status].length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed border-gray-200 p-4">
+                    <p className="text-sm text-center text-gray-500">
+                      Sem itens
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {columns[status].map((task) => (
+                      <KanbanCard
+                        key={task.id}
+                        task={task}
+                        status={status}
+                        onMove={moveTask}
+                      />
+                    ))}
                   </div>
                 )}
-              </Droppable>
-            ))}
-          </div>
-        </DragDropContext>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

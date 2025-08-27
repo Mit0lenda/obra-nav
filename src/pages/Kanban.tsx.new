@@ -304,7 +304,7 @@ export default function Kanban() {
 
         {/* Kanban Board */}
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-full overflow-x-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {(['A FAZER', 'EM ANDAMENTO', 'EM ANÁLISE', 'CONCLUÍDO'] as const).map((status) => (
               <Droppable key={status} droppableId={status}>
                 {(provided, snapshot) => (
@@ -312,8 +312,8 @@ export default function Kanban() {
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={`bg-white rounded-lg shadow-sm ${getColumnHeaderColor(status)} ${
-                      snapshot.isDraggingOver ? 'bg-blue-50 ring-2 ring-blue-200' : ''
-                    } min-h-[200px] flex flex-col transition-colors duration-200 ease-in-out`}
+                      snapshot.isDraggingOver ? 'bg-blue-50' : ''
+                    }`}
                   >
                     <div className="p-4 border-b border-gray-100">
                       <div className="flex items-center justify-between">
@@ -324,15 +324,15 @@ export default function Kanban() {
                       </div>
                     </div>
 
-                    <div className="p-4 flex-1 overflow-y-auto max-h-[calc(100vh-250px)]">
+                    <div className="p-4">
                       {columns[status].length === 0 ? (
-                        <div className="rounded-lg border-2 border-dashed border-gray-200 p-4 h-full min-h-[200px] flex items-center justify-center">
+                        <div className="rounded-lg border-2 border-dashed border-gray-200 p-4 min-h-[100px]">
                           <p className="text-sm text-center text-gray-500">
                             Sem itens
                           </p>
                         </div>
                       ) : (
-                        <div className="space-y-3 min-w-[250px]">
+                        <div className="space-y-3">
                           {columns[status].map((task, index) => (
                             <Draggable key={task.id} draggableId={String(task.id)} index={index}>
                               {(provided, snapshot) => (
@@ -342,18 +342,8 @@ export default function Kanban() {
                                   {...provided.dragHandleProps}
                                   style={{
                                     ...provided.draggableProps.style,
-                                    opacity: snapshot.isDragging ? 0.95 : 1,
-                                    transform: `${provided.draggableProps.style?.transform || ''} ${snapshot.isDragging ? 'rotate(2deg)' : ''}`,
-                                    zIndex: snapshot.isDragging ? 100 : 1,
-                                    transformOrigin: 'center',
-                                    boxShadow: snapshot.isDragging ? '0 10px 20px rgba(0, 0, 0, 0.1)' : 'none',
-                                    transition: snapshot.isDragging ? 'none' : 'all 0.2s ease'
+                                    opacity: snapshot.isDragging ? 0.8 : 1
                                   }}
-                                  className={`${
-                                    snapshot.isDragging 
-                                      ? 'shadow-lg ring-2 ring-blue-200 bg-white' 
-                                      : 'transition-all duration-200'
-                                  } rounded-lg`}
                                 >
                                   <KanbanCard
                                     task={task}

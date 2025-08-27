@@ -1,0 +1,168 @@
+import { useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  CalendarIcon, 
+  UserCircle, 
+  CheckCircle, 
+  WrenchIcon,
+  Building2,
+  Edit2,
+  Trash2,
+  AlertCircle
+} from "lucide-react";
+
+type Task = {
+  id: number;
+  tipo: 'servico' | 'material';
+  status: string;
+  priority: string;
+  obra: string;
+  solicitado: string;
+  prazo: string;
+  respo: string;
+  descricao: string;
+  area?: string;
+  qtd?: string;
+  recebido?: string;
+};
+
+interface KanbanCardProps {
+  task: Task;
+  status: string;
+  onMove: (taskId: number, newStatus: string) => void;
+  onEdit: (taskId: number, updatedTask: Task) => void;
+  onDelete: (taskId: number) => void;
+}
+
+const getPriorityColor = (priority: string) => {
+  switch (priority.toLowerCase()) {
+    case 'crítico': return 'bg-red-100 text-red-800 border-red-200';
+    case 'alta': return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'média': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'baixa': return 'bg-green-100 text-green-800 border-green-200';
+    default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+};
+
+export function KanbanCard({ task, status, onMove, onEdit, onDelete }: KanbanCardProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [editedTask, setEditedTask] = useState<Task>(task);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const stopPropagation = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleEdit = () => {
+    onEdit(task.id, editedTask);
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    onDelete(task.id);
+    setIsDeleting(false);
+  };
+
+  const cardContent = (
+    <Card className="overflow-hidden bg-white hover:shadow-md transition-all duration-200 will-change-transform cursor-grab active:cursor-grabbing hover:scale-[1.02] active:scale-100">
+      <div className="p-4">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={`${getPriorityColor(task.priority)} px-2 py-0.5`}>
+              {task.priority}
+            </Badge>
+            {task.tipo === 'material' && task.qtd && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {task.qtd}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <CalendarIcon className="w-4 h-4" />
+            {new Date(task.prazo).toLocaleDateString()}
+          </div>
+        </div>
+
+        <div className="bg-gray-50 p-3 rounded-lg mb-3">
+          <div className="text-sm text-gray-900 line-clamp-2">{task.descricao}</div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Building2 className="w-4 h-4" />
+            {task.obra}
+          </div>
+          {task.tipo === 'material' && !task.recebido && (
+            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              Pendente
+            </Badge>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+
+  const dialogContent = (
+    <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogHeader>
+        <DialogTitle>
+          {task.tipo === 'servico' ? 'Detalhes do Serviço' : 'Detalhes da Requisição'}
+        </DialogTitle>
+      </DialogHeader>
+
+      {/* ... resto do conteúdo do dialog ... */}
+    </DialogContent>
+  );
+
+  return (
+    <>
+      <div onClick={() => setIsDialogOpen(true)}>
+        {cardContent}
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        {dialogContent}
+      </Dialog>
+
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar {task.tipo === 'servico' ? 'Serviço' : 'Material'}</DialogTitle>
+          </DialogHeader>
+
+          {/* ... resto do conteúdo do dialog de edição ... */}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* ... resto do conteúdo do dialog de exclusão ... */}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

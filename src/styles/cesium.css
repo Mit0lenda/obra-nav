@@ -1,11 +1,48 @@
-.cesium-viewer {
+#map-container-3d {
   width: 100%;
   height: 100%;
+  position: relative;
 }
 
-.cesium-widget,
-.cesium-widget canvas {
+.cesium-viewer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.cesium-viewer canvas {
   width: 100%;
   height: 100%;
   touch-action: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.cesium-viewer-cesiumWidgetContainer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+}
+
+/* Melhorar contraste dos controles */
+.cesium-button {
+  background-color: rgba(38, 38, 38, 0.75) !important;
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.cesium-button:hover {
+  background-color: rgba(38, 38, 38, 0.9) !important;
+}
+
+/* Esconder elementos desnecessários */
+.cesium-viewer-bottom,
+.cesium-viewer-timelineContainer,
+.cesium-viewer-animationContainer,
+.cesium-viewer-fullscreenContainer {
+  display: none !important;
 }

@@ -1,25 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import PageHeader from "@/components/shared/PageHeader";
 import { useNavigate } from "react-router-dom";
 import { useObraScope } from "@/app/obraScope";
 import { mockMapWorks } from "@/data/mockMap";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMap } from '../features/map/hooks/useMapbox';
-import { useCesiumMap } from '../features/map/hooks/useCesiumMap';
 import { useMapData } from '../features/map/hooks/useMapData';
 import { MapError } from '../features/map/components/MapError';
 import { MapFallback } from '../features/map/components/MapFallback';
 import "mapbox-gl/dist/mapbox-gl.css";
-import 'cesium/Build/Cesium/Widgets/widgets.css';
-import '@/styles/cesium.css';
 
 export default function MapPage() {
   const navigate = useNavigate();
   const { obra: obraScope } = useObraScope();
-  const [is3D, setIs3D] = useState(false);
   
   // Get filtered map data
   const { works, isLoading } = useMapData({
@@ -33,21 +27,11 @@ export default function MapPage() {
   }, [navigate]);
 
   // Initialize map
-  // Use o hook apropriado baseado no modo 3D
-  const { error: error2D } = useMap({
-    containerId: 'map-container-2d',
-    works,
-    onMarkerClick: handleMarkerClick,
-    is3D: false
-  });
-
-  const { error: error3D } = useCesiumMap({
-    containerId: 'map-container-3d',
+  const { error } = useMap({
+    containerId: 'map-container',
     works,
     onMarkerClick: handleMarkerClick
   });
-
-  const error = is3D ? error3D : error2D;
 
   if (error) {
     return <MapError error={error} works={works} onProjectClick={() => navigate('/projects')} />;
@@ -55,52 +39,74 @@ export default function MapPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <PageHeader 
-          title="Mapa das Obras" 
-          subtitle={`Visualize obras no mapa ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
-        />
-        
-        <div className="flex items-center gap-2">
-          <span className="text-sm">Modo 3D</span>
-          <Switch
-            checked={is3D}
-            onCheckedChange={setIs3D}
-            aria-label="Alternar modo 3D"
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <PageHeader 
+            title="Mapa das Obras" 
+            subtitle={`Visualize obras no mapa ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
           />
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                Em andamento
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                Concluído
+              </span>
+              <span className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                Em planejamento
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      {isLoading ? (
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-[70vh] w-full" />
-          </CardContent>
-        </Card>
-      ) : works.length > 0 ? (
-        <>
-          <div 
-            id="map-container-2d" 
-            className={`h-[70vh] w-full rounded-lg border ${is3D ? 'hidden' : ''}`} 
-          />
-          <div 
-            id="map-container-3d" 
-            className={`h-[70vh] w-full rounded-lg border ${!is3D ? 'hidden' : ''}`} 
-          />
-        </>
-      ) : (
-        <MapFallback />
-      )}
-      
-      {/* Quick actions */}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIs3D(!is3D)}
-        >
-          {is3D ? 'Voltar para 2D' : 'Ver em 3D'}
-        </Button>
+        
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-6">
+              <Skeleton className="h-[70vh] w-full" />
+            </CardContent>
+          </Card>
+        ) : works.length > 0 ? (
+          <Card>
+            <CardContent className="p-1">
+              <div 
+                id="map-container" 
+                className="h-[70vh] w-full rounded-lg overflow-hidden relative" 
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <MapFallback />
+        )}
+
+        {works.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {works.slice(0, 3).map((work) => (
+              <Card key={work.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1 space-y-1">
+                      <h3 className="font-medium">{work.nome}</h3>
+                      <div className="text-sm text-muted-foreground">
+                        Progresso: {work.progresso}%
+                      </div>
+                      <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all" 
+                          style={{ width: `${work.progresso}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

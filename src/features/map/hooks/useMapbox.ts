@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapWork } from '@/data/mockMap';
 import 'leaflet/dist/leaflet.css';
+import '@/styles/map.css';
 
 // Fix Leaflet default icon path issues
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -30,11 +31,23 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
 
     try {
       // Initialize map
-      mapRef.current = L.map(container).setView([-14.2350, -51.9253], 4);
+      mapRef.current = L.map(container, {
+        center: [-14.2350, -51.9253], // Centro do Brasil
+        zoom: 5, // Zoom inicial maior
+        minZoom: 2, // Permite ver mais do mapa mundial
+        maxZoom: 18, // Mantém zoom máximo para detalhes
+        wheelPxPerZoomLevel: 100, // Torna o zoom mais suave
+        maxBounds: [
+          [-60, -180], // Limite sul em -60 (abaixo da Antártida)
+          [60, 180]    // Limite norte em 60 (acima da Rússia/Canadá)
+        ],
+        maxBoundsViscosity: 0.8 // Força moderada para manter dentro dos limites
+      });
 
-      // Add OpenStreetMap tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      // Add custom styled map layer
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd'
       }).addTo(mapRef.current);
 
       // If 3D is enabled, add terrain layer (optional, requires additional setup)
@@ -49,23 +62,16 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
       // Add markers
       works.forEach((work) => {
         // Create custom icon based on progress
+        const isActive = work.progresso > 0 && work.progresso < 100;
         const icon = L.divIcon({
           className: 'custom-div-icon',
-          html: `<div style="
-            background-color: ${getMarkerColor(work.progresso)};
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-          ">${work.progresso}%</div>`,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
+          html: `
+            <div class="map-marker ${isActive ? 'active' : ''}">
+              ${work.progresso}%
+            </div>
+          `,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20]
         });
 
         const marker = L.marker([work.coords[1], work.coords[0]], { icon })
@@ -73,18 +79,50 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
 
         // Add popup
         marker.bindPopup(`
-          <div class="space-y-1">
-            <div class="font-medium">${work.nome}</div>
-            <div class="text-sm text-muted-foreground">Andamento: ${work.progresso}%</div>
+          <div class="map-popup">
+            <div class="map-popup-header">
+              <div class="map-popup-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9"/>
+                  <path d="M9 22V12h6v10"/>
+                  <path d="M2 10.6L12 2l10 8.6"/>
+                </svg>
+              </div>
+              <div class="map-popup-info">
+                <div class="map-popup-title">${work.nome}</div>
+                <div class="map-popup-subtitle">
+                  ${getStatusText(work.progresso)}
+                </div>
+              </div>
+            </div>
+
+            <div class="map-popup-progress">
+              <div 
+                class="map-popup-progress-fill" 
+                style="width: ${work.progresso}%; background-color: ${getMarkerColor(work.progresso)}"
+              ></div>
+            </div>
+
+            <div class="map-popup-status">
+              <div class="map-popup-status-text">Progresso da obra</div>
+              <div class="map-popup-percentage">${work.progresso}%</div>
+            </div>
+
             <button 
               id="goto-${work.id}" 
-              class="text-sm underline story-link"
+              class="map-popup-button"
               onclick="window.dispatchEvent(new CustomEvent('markerClick', { detail: '${work.id}' }))"
             >
-              Ver detalhes
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m9 18 6-6-6-6"/>
+              </svg>
+              Ver detalhes da obra
             </button>
           </div>
-        `);
+        `, {
+          closeButton: true,
+          className: 'custom-popup'
+        });
 
         markersRef.current.push(marker);
       });
@@ -107,6 +145,12 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
     if (progress <= 30) return '#f59e0b';
     if (progress >= 80) return '#10b981';
     return '#3b82f6';
+  };
+
+  const getStatusText = (progress: number): string => {
+    if (progress <= 30) return 'Obra em fase inicial';
+    if (progress >= 80) return 'Obra em fase final';
+    return 'Obra em andamento';
   };
 
   // Add event listener for marker clicks
