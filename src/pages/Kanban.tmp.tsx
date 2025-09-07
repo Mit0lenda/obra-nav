@@ -398,6 +398,8 @@ export default function Kanban() {
                         task={task}
                         status={status}
                         onMove={moveTask}
+                        onEdit={() => {}}
+                        onDelete={() => {}}
                       />
                     ))}
                   </div>
