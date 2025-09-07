@@ -32,10 +32,10 @@ interface Use3DMapProps {
 }
 
 export function use3DMap({ containerId, works, onMarkerClick }: Use3DMapProps) {
-  // Memoizar a função de criação de marcador
   const getMarkerImage = useCallback((progress: number) => {
     return createMarkerImage(progress);
   }, []);
+  
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -145,83 +145,7 @@ export function use3DMap({ containerId, works, onMarkerClick }: Use3DMapProps) {
         viewerRef.current.destroy();
       }
     };
-
-      // Adicione marcadores para cada obra
-      works.forEach((work) => {
-        // Crie uma entidade para representar a obra
-        const entity = viewerRef.current!.entities.add({
-          name: work.nome,
-          position: Cesium.Cartesian3.fromDegrees(work.coords[0], work.coords[1]),
-          billboard: {
-            image: getProgressIcon(work.progresso),
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            scale: 0.5,
-          },
-          description: `
-            <div class="cesium-infoBox-content">
-              <h3>${work.nome}</h3>
-              <p>Progresso: ${work.progresso}%</p>
-              <button onclick="window.dispatchEvent(new CustomEvent('markerClick', { detail: '${work.id}' }))">
-                Ver detalhes
-              </button>
-            </div>
-          `,
-        });
-
-        // Adicione interatividade
-        if (onMarkerClick) {
-          viewerRef.current!.selectedEntityChanged.addEventListener((selectedEntity) => {
-            if (selectedEntity === entity) {
-              onMarkerClick(work.id);
-            }
-          });
-        }
-      });
-
-      // Configure a visualização inicial
-      viewerRef.current.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(-51.9253, -14.2350, 3000000),
-        orientation: {
-          heading: Cesium.Math.toRadians(0),
-          pitch: Cesium.Math.toRadians(-60),
-          roll: 0.0,
-        },
-      });
-
-      setIsLoaded(true);
-    } catch (err) {
-      setError(err as Error);
-    }
-
-    return () => {
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-      }
-    };
-  }, [containerId, works, onMarkerClick]);
-
-  // Helper para gerar ícone baseado no progresso
-  const getProgressIcon = (progress: number) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 40;
-    canvas.height = 40;
-    const ctx = canvas.getContext('2d')!;
-
-    // Desenhe um círculo com cor baseada no progresso
-    ctx.beginPath();
-    ctx.arc(20, 20, 15, 0, Math.PI * 2);
-    ctx.fillStyle = progress <= 30 ? '#f59e0b' : progress >= 80 ? '#10b981' : '#3b82f6';
-    ctx.fill();
-
-    // Adicione o texto do progresso
-    ctx.fillStyle = 'white';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${progress}%`, 20, 20);
-
-    return canvas;
-  };
+  }, [containerId, works, onMarkerClick, getMarkerImage]);
 
   return {
     viewer: viewerRef.current,
