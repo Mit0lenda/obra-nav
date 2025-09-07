@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      atualizacoes_progresso: {
+        Row: {
+          created_at: string | null
+          data: string | null
+          descricao: string
+          id: string
+          marco: string | null
+          relatorio_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: string | null
+          descricao: string
+          id?: string
+          marco?: string | null
+          relatorio_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: string | null
+          descricao?: string
+          id?: string
+          marco?: string | null
+          relatorio_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atualizacoes_progresso_relatorio_id_fkey"
+            columns: ["relatorio_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auditoria: {
+        Row: {
+          acao: string
+          detalhes: string | null
+          id: string
+          timestamp: string | null
+          usuario: string
+        }
+        Insert: {
+          acao: string
+          detalhes?: string | null
+          id?: string
+          timestamp?: string | null
+          usuario: string
+        }
+        Update: {
+          acao?: string
+          detalhes?: string | null
+          id?: string
+          timestamp?: string | null
+          usuario?: string
+        }
+        Relationships: []
+      }
       materiais: {
         Row: {
           created_at: string | null
@@ -48,6 +107,94 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "materiais_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimentacoes: {
+        Row: {
+          created_at: string | null
+          id: string
+          material_id: string | null
+          motivo: string | null
+          quantidade: number
+          tipo: string
+          usuario: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          material_id?: string | null
+          motivo?: string | null
+          quantidade: number
+          tipo: string
+          usuario?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          material_id?: string | null
+          motivo?: string | null
+          quantidade?: number
+          tipo?: string
+          usuario?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materiais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notificacoes: {
+        Row: {
+          categoria: string | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          lida: boolean | null
+          obra_id: string | null
+          prioridade: string | null
+          remetente: string | null
+          status: string | null
+          titulo: string
+          updated_at: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          lida?: boolean | null
+          obra_id?: string | null
+          prioridade?: string | null
+          remetente?: string | null
+          status?: string | null
+          titulo: string
+          updated_at?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          lida?: boolean | null
+          obra_id?: string | null
+          prioridade?: string | null
+          remetente?: string | null
+          status?: string | null
+          titulo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacoes_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
@@ -96,6 +243,50 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      relatorios: {
+        Row: {
+          caracteristicas: string[] | null
+          created_at: string | null
+          data_publicacao: string | null
+          id: string
+          obra_id: string | null
+          resumo: string | null
+          status: string | null
+          titulo: string
+          updated_at: string | null
+        }
+        Insert: {
+          caracteristicas?: string[] | null
+          created_at?: string | null
+          data_publicacao?: string | null
+          id?: string
+          obra_id?: string | null
+          resumo?: string | null
+          status?: string | null
+          titulo: string
+          updated_at?: string | null
+        }
+        Update: {
+          caracteristicas?: string[] | null
+          created_at?: string | null
+          data_publicacao?: string | null
+          id?: string
+          obra_id?: string | null
+          resumo?: string | null
+          status?: string | null
+          titulo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relatorios_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
