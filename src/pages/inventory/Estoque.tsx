@@ -7,17 +7,47 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { FixedSizeList as List } from "react-window";
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
-import { useInventory, useMovements, obrasOptions, categoriaOptions, InventoryItem } from "@/data/mockInventory";
+import { useMateriais } from "@/integrations/supabase/hooks/useMateriais";
+import { useMovimentacoes } from "@/integrations/supabase/hooks/useMovimentacoes";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
 import { fmtDate, fmtDateTime } from "@/lib/date";
 import { ArrowUpDown, History, Search } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
 import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { useDebounce } from "@/hooks/use-debounce";
 
+type InventoryItem = {
+  id: string;
+  material: string;
+  quantidade: number;
+  unidade: string;
+  obra: string;
+  categoria: string;
+  status: 'Normal' | 'Baixo' | 'Crítico';
+  ultimaMov: string;
+};
+
 export default function Estoque() {
   const navigate = useNavigate();
-  const { data: items = [], isLoading } = useInventory();
+  const { data: materiais = [], isLoading } = useMateriais();
+  const { data: obrasData = [] } = useObras();
   const { obra: obraScope } = useObraScope();
+
+  // Convert Supabase data to component format
+  const items: InventoryItem[] = materiais.map(material => ({
+    id: material.id,
+    material: material.nome,
+    quantidade: parseFloat(material.quantidade?.toString() || '0'),
+    unidade: material.unidade || '',
+    obra: material.obras?.nome || '',
+    categoria: 'Material', // Default category
+    status: parseFloat(material.quantidade?.toString() || '0') === 0 ? 'Crítico' : 
+            parseFloat(material.quantidade?.toString() || '0') < 10 ? 'Baixo' : 'Normal',
+    ultimaMov: material.updated_at || material.created_at || new Date().toISOString()
+  }));
+
+  const obrasOptions = ["Todas as obras", ...obrasData.map(obra => obra.nome)];
+  const categoriaOptions = ["Todos", "Material", "Ferramenta", "EPIs"];
 
   type SortKey = 'quantidade' | 'ultimaMov';
   const [q, setQ] = useState("");
@@ -83,7 +113,17 @@ export default function Estoque() {
   };
 
   const selected = filtered.find((i) => i.id === dialogId) || items.find((i) => i.id === dialogId) || null;
-  const { data: movements = [], isLoading: loadingMov } = useMovements(dialogId || "");
+  const { data: movimentacoes = [], isLoading: loadingMov } = useMovimentacoes(dialogId || "");
+  
+  // Convert movements to component format
+  const movements = movimentacoes.map(mov => ({
+    id: mov.id,
+    data: mov.created_at || new Date().toISOString(),
+    tipo: mov.tipo === 'Entrada' ? 'Entrada' : 'Saída',
+    quantidade: parseFloat(mov.quantidade?.toString() || '0'),
+    motivo: mov.motivo || '',
+    usuario: mov.usuario || ''
+  }));
 
   const StatusBadge = ({ status }: { status: InventoryItem['status'] }) => {
     const map: Record<InventoryItem['status'], string> = {

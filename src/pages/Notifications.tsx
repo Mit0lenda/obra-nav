@@ -8,15 +8,9 @@ import { KanbanSquare, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import NotificationCard from "@/components/notifications/NotificationCard";
 import { useObraScope } from "@/app/obraScope";
-import {
-  useNotifications,
-  useObrasFromNotifications,
-  useMarkRead,
-  useRemoveNotification,
-  useMarkAllRead,
-  useApproveNotification,
-  useRejectNotification,
-} from "@/data/mockNotifications";
+import { useNotificacoes } from "@/integrations/supabase/hooks/useNotificacoes";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
+import { useUpdateNotificacao, useDeleteNotificacao, useMarkNotificacaoAsRead } from "@/integrations/supabase/hooks/useNotificacoes";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "@/components/ui/sonner";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -24,13 +18,29 @@ import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 
 export default function Notifications() {
   const navigate = useNavigate();
-  const { data: list = [], isLoading } = useNotifications();
-  const { data: obras = [] } = useObrasFromNotifications();
+  const { data: notifications = [], isLoading } = useNotificacoes();
+  const { data: obrasData = [] } = useObras();
   const [obra, setObra] = useState<string>("Todas");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [tab, setTab] = useState<string>("Todas");
   const { obra: obraScope } = useObraScope();
+
+  // Convert Supabase notifications to component format
+  const list = notifications.map(notif => ({
+    id: notif.id,
+    title: notif.titulo,
+    description: notif.descricao || '',
+    category: notif.categoria || 'geral',
+    priority: notif.prioridade || 'media',
+    status: notif.status || 'pendente',
+    isRead: notif.lida || false,
+    obra: notif.obras?.nome || '',
+    sender: notif.remetente || '',
+    createdAt: new Date(notif.created_at || Date.now()),
+  }));
+
+  const obras = obrasData.map(obra => obra.nome);
 
   // Debounce search
   const debouncedSetSearch = useDebounce((value: string) => {
@@ -48,11 +58,9 @@ export default function Notifications() {
     }
   }, [obraScope]);
 
-  const markRead = useMarkRead();
-  const removeN = useRemoveNotification();
-  const markAll = useMarkAllRead();
-  const approveN = useApproveNotification();
-  const rejectN = useRejectNotification();
+  const markRead = useMarkNotificacaoAsRead();
+  const removeN = useDeleteNotificacao();
+  const updateNotificacao = useUpdateNotificacao();
 
   const filtered = useMemo(() => {
     return list.filter((n) => {
@@ -93,7 +101,10 @@ export default function Notifications() {
             </Button>
             <Button
               onClick={async () => {
-                await markAll.mutateAsync();
+                // Mark all as read using individual updates
+                for (const notif of notifications.filter(n => !n.lida)) {
+                  await markRead.mutateAsync(notif.id);
+                }
                 toast.success("Todas marcadas como lidas");
               }}
             >
@@ -155,14 +166,20 @@ export default function Notifications() {
                 <NotificationCard
                   key={n.id}
                   n={n}
-                  onMarkRead={async () => { await markRead.mutateAsync(n.id); toast.success("Marcada como lida"); }}
-                  onRemove={async () => { await removeN.mutateAsync(n.id); toast.info("Notificação removida"); }}
+                  onMarkRead={async () => { 
+                    await markRead.mutateAsync(n.id); 
+                    toast.success("Marcada como lida"); 
+                  }}
+                  onRemove={async () => { 
+                    await removeN.mutateAsync(n.id); 
+                    toast.info("Notificação removida"); 
+                  }}
                   onApprove={async () => {
-                    await approveN.mutateAsync(n.id);
-                    toast.success("Notificação aprovada e enviada ao Kanban");
+                    await updateNotificacao.mutateAsync({ id: n.id, status: 'aprovado' });
+                    toast.success("Notificação aprovada");
                   }}
                   onReject={async () => {
-                    await rejectN.mutateAsync(n.id);
+                    await updateNotificacao.mutateAsync({ id: n.id, status: 'rejeitado' });
                     toast.warning("Notificação rejeitada");
                   }}
                 />

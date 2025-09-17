@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,6 +21,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/integrations/supabase/hooks/useTasks";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
+import { useObraScope } from "@/app/obraScope";
+import { LoadingPlaceholder } from "@/components/shared/States";
+import { toast } from "sonner";
 
 // Tipos
 type BaseTask = {
@@ -149,68 +154,127 @@ function NewTaskDialog({ onSubmit, taskType }: { onSubmit: (data: NewTaskData) =
 // Componente Principal
 export default function Kanban() {
   const [activeTab, setActiveTab] = useState<KanbanTab>('general');
-  const [generalTasks, setGeneralTasks] = useState<Task[]>(mockGeneralTasks);
-  const [materialTasks, setMaterialTasks] = useState<Task[]>(mockMaterialTasks);
-  const [activeObra, setActiveObra] = useState("Edifício Central");
+  const { data: allTasks = [], isLoading: loadingTasks } = useTasks();
+  const { data: obras = [], isLoading: loadingObras } = useObras();
+  const { obra: obraScope } = useObraScope();
+  const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
 
-  const handleDragEnd = (result: DropResult) => {
+  // Convert Supabase tasks to component format
+  const supabaseTasks = allTasks.map(task => ({
+    id: parseInt(task.id?.replace(/-/g, '').substring(0, 8), 16) || Math.random(),
+    tipo: task.tipo as 'servico' | 'material',
+    status: task.status || 'A FAZER',
+    priority: task.prioridade || 'média',
+    obra: task.obras?.nome || '',
+    solicitado: task.solicitante || '',
+    prazo: task.prazo ? new Date(task.prazo).toISOString().split('T')[0] : '',
+    respo: task.responsavel || '',
+    area: task.area || '',
+    descricao: task.descricao || '',
+    qtd: task.quantidade?.toString() || '',
+    recebido: ''
+  }));
+
+  const generalTasks = supabaseTasks.filter(t => t.tipo === 'servico');
+  const materialTasks = supabaseTasks.filter(t => t.tipo === 'material');
+  
+  const [activeObra, setActiveObra] = useState(obraScope !== "todas" ? obraScope : "Todas as obras");
+
+  useEffect(() => {
+    if (obraScope !== "todas") {
+      setActiveObra(obraScope);
+    }
+  }, [obraScope]);
+
+  const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
     const { source, destination } = result;
-
-    // Se moveu para a mesma coluna e mesma posição
-    if (source.droppableId === destination.droppableId &&
-        source.index === destination.index) {
+    if (source.droppableId === destination.droppableId && source.index === destination.index) {
       return;
     }
 
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
     const tasks = activeTab === 'general' ? generalTasks : materialTasks;
-
-    // Cria uma cópia do array de tarefas
-    const updatedTasks = Array.from(tasks);
     const sourceColumn = tasks.filter(t => t.status === source.droppableId);
-    const [removed] = sourceColumn.splice(source.index, 1);
+    const draggedTask = sourceColumn[source.index];
     
-    // Atualiza o status da tarefa
-    const updatedTask = { ...removed, status: destination.droppableId };
-
-    // Encontra o índice correto na lista completa
-    const taskIndex = updatedTasks.findIndex(t => t.id === removed.id);
-    updatedTasks[taskIndex] = updatedTask;
-
-    setTasks(updatedTasks);
-  };
-
-  const moveTask = (taskId: number, newStatus: string) => {
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    setTasks(tasks => tasks.map(task =>
-      task.id === taskId ? { ...task, status: newStatus } : task
-    ));
-  };
-
-  const editTask = (taskId: number, updatedData: Partial<Task>) => {
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    setTasks(tasks => tasks.map(task => {
-      if (task.id === taskId) {
-        const updatedTask = { ...task, ...updatedData };
-        if (task.tipo === 'servico') {
-          return updatedTask as ServiceTask;
-        } else {
-          return updatedTask as MaterialTask;
+    if (draggedTask) {
+      const originalTask = allTasks.find(t => 
+        parseInt(t.id?.replace(/-/g, '').substring(0, 8), 16) === draggedTask.id
+      );
+      
+      if (originalTask) {
+        try {
+          await updateTask.mutateAsync({
+            id: originalTask.id,
+            status: destination.droppableId
+          });
+          toast.success("Status da tarefa atualizado");
+        } catch (error) {
+          toast.error("Erro ao atualizar tarefa");
         }
       }
-      return task;
-    }));
+    }
   };
 
-  const deleteTask = (taskId: number) => {
-    const setTasks = activeTab === 'general' ? setGeneralTasks : setMaterialTasks;
-    setTasks(tasks => tasks.filter(task => task.id !== taskId));
+  const moveTask = async (taskId: number, newStatus: string) => {
+    const originalTask = allTasks.find(t => 
+      parseInt(t.id?.replace(/-/g, '').substring(0, 8), 16) === taskId
+    );
+    
+    if (originalTask) {
+      try {
+        await updateTask.mutateAsync({ id: originalTask.id, status: newStatus });
+        toast.success("Status atualizado");
+      } catch (error) {
+        toast.error("Erro ao atualizar status");
+      }
+    }
+  };
+
+  const editTask = async (taskId: number, updatedData: Partial<Task>) => {
+    const originalTask = allTasks.find(t => 
+      parseInt(t.id?.replace(/-/g, '').substring(0, 8), 16) === taskId
+    );
+    
+    if (originalTask) {
+      try {
+        await updateTask.mutateAsync({
+          id: originalTask.id,
+          titulo: updatedData.descricao,
+          descricao: updatedData.descricao,
+          prioridade: updatedData.priority,
+          area: updatedData.area
+        });
+        toast.success("Tarefa atualizada");
+      } catch (error) {
+        toast.error("Erro ao atualizar tarefa");
+      }
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    const originalTask = allTasks.find(t => 
+      parseInt(t.id?.replace(/-/g, '').substring(0, 8), 16) === taskId
+    );
+    
+    if (originalTask) {
+      try {
+        await deleteTask.mutateAsync(originalTask.id);
+        toast.success("Tarefa removida");
+      } catch (error) {
+        toast.error("Erro ao remover tarefa");
+      }
+    }
   };
 
   const filteredTasks = (activeTab === 'general' ? generalTasks : materialTasks)
-    .filter(task => activeObra === 'Todas as obras' || task.obra === activeObra);
+    .filter(task => {
+      if (activeObra === 'Todas as obras') return true;
+      return task.obra === activeObra;
+    });
 
   const columns: Record<string, Task[]> = {
     'A FAZER': filteredTasks.filter(t => t.status === 'A FAZER'),
@@ -228,6 +292,10 @@ export default function Kanban() {
       default: return '';
     }
   };
+
+  if (loadingTasks || loadingObras) {
+    return <LoadingPlaceholder rows={4} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -267,19 +335,28 @@ export default function Kanban() {
               </h1>
               <NewTaskDialog 
                 taskType={activeTab === 'general' ? 'servico' : 'material'}
-                onSubmit={(data) => {
-                  const tasks = activeTab === 'general' ? generalTasks : materialTasks;
-                  const nextId = Math.max(...tasks.map(t => t.id)) + 1;
-                  const newTask = {
-                    id: nextId,
-                    status: 'A FAZER',
-                    ...data
-                  };
+                onSubmit={async (data) => {
+                  const obra = obras.find(o => o.nome === data.obra);
+                  if (!obra) {
+                    toast.error("Obra não encontrada");
+                    return;
+                  }
                   
-                  if (activeTab === 'general') {
-                    setGeneralTasks(prev => [...prev, newTask as ServiceTask]);
-                  } else {
-                    setMaterialTasks(prev => [...prev, { ...newTask, recebido: '' } as MaterialTask]);
+                  try {
+                    await createTask.mutateAsync({
+                      titulo: data.descricao,
+                      descricao: data.descricao,
+                      tipo: data.tipo,
+                      status: 'A FAZER',
+                      prioridade: data.priority,
+                      area: data.area,
+                      obra_id: obra.id,
+                      prazo: data.prazo ? new Date(data.prazo).toISOString() : null,
+                      quantidade: data.qtd ? parseFloat(data.qtd) : null
+                    });
+                    toast.success("Tarefa criada com sucesso");
+                  } catch (error) {
+                    toast.error("Erro ao criar tarefa");
                   }
                 }}
               />
@@ -292,10 +369,11 @@ export default function Kanban() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Todas as obras">Todas as obras</SelectItem>
-                  <SelectItem value="Edifício Central">Edifício Central</SelectItem>
-                  <SelectItem value="Residencial Vista Verde">Residencial Vista Verde</SelectItem>
-                  <SelectItem value="Condomínio Parque">Condomínio Parque</SelectItem>
-                  <SelectItem value="Residencial Sol Nascente">Residencial Sol Nascente</SelectItem>
+                  {obras.map((obra) => (
+                    <SelectItem key={obra.id} value={obra.nome}>
+                      {obra.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -360,7 +438,7 @@ export default function Kanban() {
                                     status={status}
                                     onMove={moveTask}
                                     onEdit={editTask}
-                                    onDelete={deleteTask}
+                                    onDelete={handleDeleteTask}
                                   />
                                 </div>
                               )}
