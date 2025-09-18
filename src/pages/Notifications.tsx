@@ -31,13 +31,14 @@ export default function Notifications() {
     id: notif.id,
     title: notif.titulo,
     description: notif.descricao || '',
-    category: notif.categoria || 'geral',
-    priority: notif.prioridade || 'media',
-    status: notif.status || 'pendente',
+    category: (notif.categoria || 'Solicitação de materiais') as any,
+    priority: (notif.prioridade === 'alta' ? 'Alta' : notif.prioridade === 'media' ? 'Média' : 'Baixa') as any,
+    status: (notif.status === 'aprovado' ? 'Aprovada' : notif.status === 'rejeitado' ? 'Rejeitada' : 'Pendente') as any,
     isRead: notif.lida || false,
-    obra: notif.obras?.nome || '',
+    obra: notif.obra?.nome || '',
     sender: notif.remetente || '',
     createdAt: new Date(notif.created_at || Date.now()),
+    timestamp: notif.created_at || new Date().toISOString(),
   }));
 
   const obras = obrasData.map(obra => obra.nome);

@@ -39,7 +39,7 @@ export default function Estoque() {
     material: material.nome,
     quantidade: parseFloat(material.quantidade?.toString() || '0'),
     unidade: material.unidade || '',
-    obra: material.obras?.nome || '',
+    obra: material.obra?.nome || '',
     categoria: 'Material', // Default category
     status: parseFloat(material.quantidade?.toString() || '0') === 0 ? 'Crítico' : 
             parseFloat(material.quantidade?.toString() || '0') < 10 ? 'Baixo' : 'Normal',

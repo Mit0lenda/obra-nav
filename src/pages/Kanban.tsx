@@ -167,7 +167,7 @@ export default function Kanban() {
     tipo: task.tipo as 'servico' | 'material',
     status: task.status || 'A FAZER',
     priority: task.prioridade || 'média',
-    obra: task.obras?.nome || '',
+    obra: task.obra?.nome || '',
     solicitado: task.solicitante || '',
     prazo: task.prazo ? new Date(task.prazo).toISOString().split('T')[0] : '',
     respo: task.responsavel || '',
@@ -246,7 +246,7 @@ export default function Kanban() {
           titulo: updatedData.descricao,
           descricao: updatedData.descricao,
           prioridade: updatedData.priority,
-          area: updatedData.area
+          area: (updatedData as ServiceTask).area
         });
         toast.success("Tarefa atualizada");
       } catch (error) {

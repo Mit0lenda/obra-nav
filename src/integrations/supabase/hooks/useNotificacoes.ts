@@ -128,3 +128,24 @@ export function useDeleteNotificacao() {
     },
   });
 }
+
+export function useUpdateNotificacao() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<Omit<Notificacao, "id" | "created_at" | "updated_at">>) => {
+      const { data, error } = await supabase
+        .from("notificacoes")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notificacoes"] });
+    },
+  });
+}
