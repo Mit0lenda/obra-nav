@@ -1,4 +1,4 @@
-import { MapWork } from '@/data/mockMap';
+import { MapWork } from '@/features/map/hooks/useMapData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';

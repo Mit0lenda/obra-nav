@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { MapWork } from '@/data/mockMap';
+import { MapWork } from './useMapData';
+import { supabase } from '@/integrations/supabase/client';
 import 'leaflet/dist/leaflet.css';
 import '@/styles/map.css';
 
@@ -24,10 +25,26 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
   const markersRef = useRef<L.Marker[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+
+  // Fetch Mapbox token from edge function
+  useEffect(() => {
+    const fetchMapboxToken = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('mapbox-token');
+        if (error) throw error;
+        setMapboxToken(data.token);
+      } catch (err) {
+        console.warn('Could not fetch Mapbox token, using fallback map:', err);
+        setMapboxToken('fallback'); // Use fallback map without Mapbox
+      }
+    };
+    fetchMapboxToken();
+  }, []);
 
   useEffect(() => {
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container || !mapboxToken) return;
 
     try {
       // Initialize map
@@ -44,11 +61,21 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
         maxBoundsViscosity: 0.8 // Força moderada para manter dentro dos limites
       });
 
-      // Add custom styled map layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd'
-      }).addTo(mapRef.current);
+      // Add map layer - use Mapbox if token available, otherwise fallback
+      if (mapboxToken && mapboxToken !== 'fallback') {
+        // Use Mapbox tiles with token
+        L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`, {
+          attribution: '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          tileSize: 512,
+          zoomOffset: -1
+        }).addTo(mapRef.current);
+      } else {
+        // Fallback to OpenStreetMap
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: 'abcd'
+        }).addTo(mapRef.current);
+      }
 
       // If 3D is enabled, add terrain layer (optional, requires additional setup)
       if (is3D) {
@@ -139,7 +166,7 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
         mapRef.current.remove();
       }
     };
-  }, [containerId, works, is3D]);
+  }, [containerId, works, is3D, mapboxToken]);
 
   const getMarkerColor = (progress: number): string => {
     if (progress <= 30) return '#f59e0b';

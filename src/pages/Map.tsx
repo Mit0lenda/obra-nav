@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import PageHeader from "@/components/shared/PageHeader";
 import { useNavigate } from "react-router-dom";
 import { useObraScope } from "@/app/obraScope";
-import { mockMapWorks } from "@/data/mockMap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMap } from '../features/map/hooks/useMapbox';
@@ -15,9 +14,8 @@ export default function MapPage() {
   const navigate = useNavigate();
   const { obra: obraScope } = useObraScope();
   
-  // Get filtered map data
+  // Get filtered map data from Supabase
   const { works, isLoading } = useMapData({
-    works: mockMapWorks,
     scopeFilter: obraScope
   });
 
