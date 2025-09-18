@@ -4,11 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { useObraScope } from "@/app/obraScope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMap } from '../features/map/hooks/useMapbox';
+import { useMap } from '../features/map/hooks/useOpenStreetMap';
 import { useMapData } from '../features/map/hooks/useMapData';
 import { MapError } from '../features/map/components/MapError';
 import { MapFallback } from '../features/map/components/MapFallback';
-import "mapbox-gl/dist/mapbox-gl.css";
+import "leaflet/dist/leaflet.css";
 
 export default function MapPage() {
   const navigate = useNavigate();
