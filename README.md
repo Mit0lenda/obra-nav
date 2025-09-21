@@ -1,4 +1,6 @@
-# Welcome to your Lovable project
+# Sistema de Gestão de Obras - Mapa Interativo
+
+Sistema completo de mapa interativo 2D/3D com MapLibre GL JS, Zustand para estado, controles avançados, acessibilidade completa e integração Supabase.
 
 ## Project info
 
