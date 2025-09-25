@@ -4,37 +4,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAddMovement, useInventory } from "@/data/mockInventory";
+import { useMateriais, useUpdateMaterial } from "@/integrations/supabase/hooks/useMateriais";
+import { useCreateMovimentacao } from "@/integrations/supabase/hooks/useMovimentacoes";
+import { useAddAuditEntry } from "@/integrations/supabase/hooks/useAuditoria";
 import { useMemo, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { addAuditEntry } from "@/components/shared/AuditLog";
 
 export default function BaixaManual() {
-  const { data: inv = [] } = useInventory();
-  const add = useAddMovement();
+  const { data: materiais = [] } = useMateriais();
+  const { mutateAsync: createMovement } = useCreateMovimentacao();
+  const addAuditEntry = useAddAuditEntry();
   const [materialId, setMaterialId] = useState<string>("");
   const [qtd, setQtd] = useState<string>("");
   const [motivo, setMotivo] = useState<string>("Uso na Obra");
   const [obs, setObs] = useState<string>("");
-  const selected = useMemo(() => inv.find((i) => i.id === materialId) || null, [inv, materialId]);
+  const selected = useMemo(() => materiais.find((i) => i.id === materialId) || null, [materiais, materialId]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingQty, setPendingQty] = useState<number | null>(null);
 
   const perform = async (value: number) => {
-    await add.mutateAsync({
-      materialId,
-      mov: { tipo: 'Baixa', quantidade: -value, motivo: `${motivo}${obs ? ' — ' + obs : ''}`, usuario: 'Operador' },
+    if (!selected) return;
+    
+    // Create movement record (this will automatically update the material quantity)
+    await createMovement({
+      material_id: materialId,
+      tipo: 'Baixa',
+      quantidade: -value,
+      motivo: `${motivo}${obs ? ' — ' + obs : ''}`,
+      usuario: 'Operador'
     });
     
-    addAuditEntry({
+    // Add audit entry
+    await addAuditEntry({
       user: "Usuário Atual",
       action: "baixa_manual",
-      details: `Baixa manual: ${value} ${selected?.unidade || ''} de ${selected?.material || ''} - ${motivo}`,
-      entityType: "inventory",
-      entityId: materialId,
+      details: `Baixa manual: ${value} ${selected?.unidade || ''} de ${selected?.nome || ''} - ${motivo}`,
     });
     
-    toast({ title: 'Baixa registrada', description: `${value} ${selected?.unidade || ''} de ${selected?.material || ''}` });
+    toast({ title: 'Baixa registrada', description: `${value} ${selected?.unidade || ''} de ${selected?.nome || ''}` });
     setQtd("");
     setObs("");
   };
@@ -59,8 +66,8 @@ export default function BaixaManual() {
           <Select value={materialId} onValueChange={setMaterialId}>
             <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
             <SelectContent>
-              {inv.map((i) => (
-                <SelectItem key={i.id} value={i.id}>{i.material} — {i.quantidade} {i.unidade}</SelectItem>
+              {materiais.map((i) => (
+                <SelectItem key={i.id} value={i.id}>{i.nome} — {i.quantidade} {i.unidade}</SelectItem>
               ))}
             </SelectContent>
           </Select>

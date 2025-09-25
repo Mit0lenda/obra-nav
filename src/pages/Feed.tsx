@@ -1,5 +1,4 @@
 import PageHeader from "@/components/shared/PageHeader";
-import { useFeedItems } from "@/data/mockFeed";
 import { useMemo, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,15 +9,24 @@ import { useNavigate } from "react-router-dom";
 import { useObraScope } from "@/app/obraScope";
 import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useTasks } from "@/integrations/supabase/hooks/useTasks";
+import { useRelatorios } from "@/integrations/supabase/hooks/useRelatorios";
+import { useAtualizacoesProgresso } from "@/integrations/supabase/hooks/useAtualizacoesProgresso";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
 
 export default function Feed() {
-  const { data: items = [], isLoading } = useFeedItems();
+  const { data: tasks = [], isLoading: loadingTasks } = useTasks();
+  const { data: relatorios = [], isLoading: loadingRelatorios } = useRelatorios();
+  const { data: progressUpdates = [], isLoading: loadingProgress } = useAtualizacoesProgresso();
+  const { data: obras = [] } = useObras();
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [type, setType] = useState("all");
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const navigate = useNavigate();
   const { obra: obraScope } = useObraScope();
+  
+  const isLoading = loadingTasks || loadingRelatorios || loadingProgress;
 
   // Debounce search query
   const debouncedSetSearch = useDebounce((value: string) => {
@@ -41,6 +49,63 @@ export default function Feed() {
   useEffect(() => {
     localStorage.setItem(LS_FEED, JSON.stringify({ type, order }));
   }, [type, order]);
+
+  // Create unified feed items
+  const items = useMemo(() => {
+    const feedItems: any[] = [];
+    
+    // Add tasks
+    tasks.forEach(task => {
+      const obra = obras.find(o => o.id === task.obra_id);
+      feedItems.push({
+        id: `task-${task.id}`,
+        type: 'task',
+        date: new Date(task.created_at || ''),
+        data: {
+          ...task,
+          obra: obra?.nome || 'Obra não encontrada',
+          title: task.titulo,
+          description: task.descricao,
+          priority: task.prioridade === 'alta' ? 'Alta' : task.prioridade === 'media' ? 'Média' : 'Baixa',
+          kanbanEntryDate: task.data_criacao,
+          completionDate: task.prazo,
+        }
+      });
+    });
+    
+    // Add reports
+    relatorios.forEach(relatorio => {
+      const obra = obras.find(o => o.id === relatorio.obra_id);
+      feedItems.push({
+        id: `report-${relatorio.id}`,
+        type: 'report',
+        date: new Date(relatorio.created_at || ''),
+        data: {
+          ...relatorio,
+          obra: obra?.nome || 'Obra não encontrada',
+          publishDate: relatorio.data_publicacao,
+          summary: relatorio.resumo,
+          characteristics: relatorio.caracteristicas || [],
+        }
+      });
+    });
+    
+    // Add progress updates
+    progressUpdates.forEach(update => {
+      feedItems.push({
+        id: `progress-${update.id}`,
+        type: 'progress',
+        date: new Date(update.data || ''),
+        data: {
+          ...update,
+          milestone: update.marco,
+          description: update.descricao,
+        }
+      });
+    });
+    
+    return feedItems;
+  }, [tasks, relatorios, progressUpdates, obras]);
 
   const filtered = useMemo(() => {
     const arr = items

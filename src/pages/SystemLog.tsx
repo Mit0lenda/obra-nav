@@ -1,17 +1,31 @@
 import PageHeader from "@/components/shared/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import AuditLog from "@/components/shared/AuditLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Clock, User, Database, Activity } from "lucide-react";
+import { useAuditoria } from "@/integrations/supabase/hooks/useAuditoria";
+import { LoadingPlaceholder } from "@/components/shared/States";
+import { useMemo } from "react";
 
 export default function SystemLog() {
-  const stats = {
-    totalActions: 157,
-    activeUsers: 8,
-    uptime: "7 dias, 12h",
-    lastSync: "2 min atrás"
-  };
+  const { data: auditLogs = [], isLoading } = useAuditoria();
+  
+  const stats = useMemo(() => {
+    const totalActions = auditLogs.length;
+    const uniqueUsers = new Set(auditLogs.map(log => log.usuario)).size;
+    const lastLog = auditLogs[0];
+    const lastSync = lastLog 
+      ? new Date(lastLog.timestamp || '').toLocaleString('pt-BR')
+      : 'Nunca';
+    
+    return {
+      totalActions,
+      activeUsers: uniqueUsers,
+      uptime: "Sistema Online",
+      lastSync
+    };
+  }, [auditLogs]);
 
   return (
     <div className="space-y-6">
@@ -84,7 +98,47 @@ export default function SystemLog() {
               <CardTitle>Ações Recentes</CardTitle>
             </CardHeader>
             <CardContent>
-              <AuditLog />
+              {isLoading ? (
+                <LoadingPlaceholder rows={5} />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data/Hora</TableHead>
+                        <TableHead>Usuário</TableHead>
+                        <TableHead>Ação</TableHead>
+                        <TableHead>Detalhes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLogs.slice(0, 50).map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="font-mono text-sm">
+                            {log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{log.usuario}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{log.acao}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-md truncate">
+                            {log.detalhes || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {auditLogs.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">
+                            Nenhum registro encontrado
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

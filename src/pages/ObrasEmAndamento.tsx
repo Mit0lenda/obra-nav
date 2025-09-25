@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,72 +13,74 @@ import {
 } from "@/components/ui/table";
 import { Construction, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
-
-interface Obra {
-  id: string;
-  nome: string;
-  progresso: number;
-  status: 'em_andamento' | 'concluida' | 'atrasada';
-  previsaoConclusao: string;
-  responsavel: string;
-  pendencias: number;
-}
-
-const mockObras: Obra[] = [
-  {
-    id: '1',
-    nome: 'Residencial Vista Verde',
-    progresso: 65,
-    status: 'em_andamento',
-    previsaoConclusao: '2025-12-20',
-    responsavel: 'João Silva',
-    pendencias: 3
-  },
-  {
-    id: '2',
-    nome: 'Edifício Central',
-    progresso: 45,
-    status: 'atrasada',
-    previsaoConclusao: '2025-10-15',
-    responsavel: 'Maria Santos',
-    pendencias: 5
-  },
-  {
-    id: '3',
-    nome: 'Condomínio Jardim do Sol',
-    progresso: 92,
-    status: 'em_andamento',
-    previsaoConclusao: '2025-09-30',
-    responsavel: 'Pedro Costa',
-    pendencias: 1
-  }
-];
+import { useObras } from '@/integrations/supabase/hooks/useObras';
+import { useTasks } from '@/integrations/supabase/hooks/useTasks';
+import { LoadingPlaceholder } from '@/components/shared/States';
 
 export default function ObrasEmAndamento() {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const { data: obras = [], isLoading } = useObras();
+  const { data: tasks = [] } = useTasks();
   const [filtro, setFiltro] = useState<'todas' | 'atrasadas' | 'em_dia'>('todas');
 
-  useEffect(() => {
-    // Simula chamada à API
-    setObras(mockObras);
-  }, []);
+  // Calculate progress based on tasks
+  const obrasWithProgress = useMemo(() => {
+    return obras.map(obra => {
+      const obraTasks = tasks.filter(task => task.obra_id === obra.id);
+      const completedTasks = obraTasks.filter(task => task.status === 'CONCLUÍDA').length;
+      const progresso = obraTasks.length > 0 ? Math.round((completedTasks / obraTasks.length) * 100) : 0;
+      
+      // Calculate pending tasks
+      const pendencias = obraTasks.filter(task => 
+        task.status === 'A FAZER' && 
+        task.prazo && 
+        new Date(task.prazo) < new Date()
+      ).length;
+      
+      // Determine status
+      let status: 'em_andamento' | 'concluida' | 'atrasada' = 'em_andamento';
+      if (progresso === 100) {
+        status = 'concluida';
+      } else if (pendencias > 0 || (obra.previsao_conclusao && new Date(obra.previsao_conclusao) < new Date())) {
+        status = 'atrasada';
+      }
+      
+      return {
+        ...obra,
+        progresso,
+        status,
+        pendencias
+      };
+    });
+  }, [obras, tasks]);
 
-  const obrasFiltered = obras.filter(obra => {
+  const obrasFiltered = obrasWithProgress.filter(obra => {
     if (filtro === 'todas') return true;
     if (filtro === 'atrasadas') return obra.status === 'atrasada';
     return obra.status === 'em_andamento';
   });
 
-  const getStatusBadge = (status: Obra['status']) => {
+  const getStatusBadge = (status: 'em_andamento' | 'concluida' | 'atrasada') => {
     switch (status) {
       case 'em_andamento':
         return <Badge variant="default"><Construction className="mr-1 h-3 w-3" /> Em Andamento</Badge>;
       case 'atrasada':
         return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3" /> Atrasada</Badge>;
       case 'concluida':
-        return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3" /> Concluída</Badge>;
+        return <Badge variant="default"><CheckCircle2 className="mr-1 h-3 w-3" /> Concluída</Badge>;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Obras em Andamento"
+          subtitle="Listagem de obras com status e progresso"
+        />
+        <LoadingPlaceholder rows={6} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -96,7 +98,7 @@ export default function ObrasEmAndamento() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{obras.length}</div>
+            <div className="text-2xl font-bold">{obrasWithProgress.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -107,7 +109,7 @@ export default function ObrasEmAndamento() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {obras.filter(o => o.status === 'atrasada').length}
+              {obrasWithProgress.filter(o => o.status === 'atrasada').length}
             </div>
           </CardContent>
         </Card>
@@ -119,7 +121,7 @@ export default function ObrasEmAndamento() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {obras.reduce((acc, obra) => acc + obra.pendencias, 0)}
+              {obrasWithProgress.reduce((acc, obra) => acc + obra.pendencias, 0)}
             </div>
           </CardContent>
         </Card>
@@ -174,8 +176,8 @@ export default function ObrasEmAndamento() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>{new Date(obra.previsaoConclusao).toLocaleDateString()}</TableCell>
-                  <TableCell>{obra.responsavel}</TableCell>
+                  <TableCell>{obra.previsao_conclusao ? new Date(obra.previsao_conclusao).toLocaleDateString() : '-'}</TableCell>
+                  <TableCell>{obra.responsavel || '-'}</TableCell>
                   <TableCell>
                     <Badge variant={obra.pendencias > 0 ? "warning" : "success"}>
                       {obra.pendencias}

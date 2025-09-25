@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useMemo } from "react";
-import { useAddMovement, useInventory } from "@/data/mockInventory";
+import { useMateriais } from "@/integrations/supabase/hooks/useMateriais";
+import { useCreateMovimentacao } from "@/integrations/supabase/hooks/useMovimentacoes";
+import { useAddAuditEntry } from "@/integrations/supabase/hooks/useAuditoria";
 import { toast } from "@/components/ui/use-toast";
-import { addAuditEntry } from "@/components/shared/AuditLog";
 
 const LS_XML_KEYS = 'nexium_xml_keys_v1';
 
@@ -29,8 +30,9 @@ type XmlPreview = {
 };
 
 export default function EntradaXML() {
-  const { data: inv = [] } = useInventory();
-  const addMovement = useAddMovement();
+  const { data: materiais = [] } = useMateriais();
+  const { mutateAsync: createMovement } = useCreateMovimentacao();
+  const addAuditEntry = useAddAuditEntry();
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<XmlPreview | null>(null);
 
@@ -76,21 +78,24 @@ export default function EntradaXML() {
 
     // gerar movimentações de Entrada para itens que existem no estoque
     const ops = preview.itens.map(async (it) => {
-      const match = inv.find((m) => m.material === it.descricao);
+      const match = materiais.find((m) => m.nome === it.descricao);
       if (!match) return;
-      await addMovement.mutateAsync({
-        materialId: match.id,
-        mov: { tipo: 'Entrada', quantidade: it.quantidade, motivo: `XML ${preview.chave}`, usuario: 'Operador' }
+      
+      // Create movement record (this will automatically update the material quantity)
+      await createMovement({
+        material_id: match.id,
+        tipo: 'Entrada',
+        quantidade: it.quantidade,
+        motivo: `XML ${preview.chave}`,
+        usuario: 'Operador'
       });
     });
     await Promise.all(ops);
     
-    addAuditEntry({
+    await addAuditEntry({
       user: "Usuário Atual",
       action: "entrada_xml",
       details: `Entrada XML: ${preview.chave} - ${preview.fornecedor} - Total ${currencyBR(totalGeral)}`,
-      entityType: "inventory",
-      entityId: preview.chave,
     });
     
     localStorage.setItem(LS_XML_KEYS, JSON.stringify([...keys, preview.chave]));
