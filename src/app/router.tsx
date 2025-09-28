@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import Index from "@/pages/Index";
+import Auth from "@/pages/Auth";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 import ObrasEmAndamento from "@/pages/ObrasEmAndamento";
 import Notifications from "@/pages/Notifications";
@@ -18,8 +20,16 @@ import SystemLog from "@/pages/SystemLog";
 
 export const router = createBrowserRouter([
   {
+    path: "/auth",
+    element: <Auth />,
+  },
+  {
     path: "/",
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Index /> },
       { path: "obras-em-andamento", element: <ObrasEmAndamento /> },

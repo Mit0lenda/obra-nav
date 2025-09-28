@@ -7,10 +7,14 @@ import { useObraScope } from "@/app/obraScope";
 import { useEffect } from "react";
 import GlobalSearch from "@/components/shared/GlobalSearch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { LogOut, User } from "lucide-react";
 
 export default function AppLayout() {
   const { data: obrasTasks = [] } = useObrasFromTasks();
   const { obra, setObra } = useObraScope();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
     let awaitingKey: string | null = null;
@@ -38,7 +42,7 @@ export default function AppLayout() {
           <header className="h-14 flex items-center border-b px-3 gap-2">
             <SidebarTrigger className="mr-1" />
             <h1 className="text-sm font-medium text-muted-foreground">Nexium — Gestão de Obras</h1>
-            <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto flex items-center gap-3">
               <GlobalSearch />
               <div className="w-56">
                 <Select value={obra} onValueChange={setObra}>
@@ -59,6 +63,22 @@ export default function AppLayout() {
                 </Badge>
               )}
               <span className="text-xs text-success">● Sistema Online</span>
+              
+              <div className="flex items-center gap-2 border-l pl-3">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {user?.email}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="h-8 px-2"
+                  aria-label="Fazer logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </header>
           <main className="flex-1 p-4 container mx-auto animate-fade-in">
