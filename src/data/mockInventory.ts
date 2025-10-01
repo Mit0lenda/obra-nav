@@ -1,130 +1,132 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-export type InventoryStatus = "Normal" | "Baixo" | "Crítico";
-
-export type InventoryItem = {
+interface InventoryItem {
   id: string;
-  material: string;
-  unidade: string;
+  codigo: string;
+  descricao: string;
+  categoria: string;
   quantidade: number;
-  obra: string;
-  categoria: "Cimento" | "Agregados" | "Ferro/Aço" | "Blocos" | "Outros";
-  status: InventoryStatus;
-  ultimaMov: string; // ISO
-};
+  unidade: string;
+  valorUnit: number;
+  estoqueMin: number;
+  estoqueMax: number;
+  fornecedor?: string;
+  ultimaEntrada?: string;
+  status: 'normal' | 'baixo' | 'critico' | 'excesso';
+}
 
-export type MovementType = "Entrada" | "Baixa";
-export type Movement = {
-  id: string;
-  data: string; // ISO
-  tipo: MovementType;
-  quantidade: number; // positivo para entrada, negativo para baixa
-  motivo: string;
-  usuario: string;
-};
-
-const LS_INV = "nexium_inventory_v1";
-const LS_MOV = "nexium_movements_v1"; // { [materialId]: Movement[] }
-
-const seedItems: InventoryItem[] = [
-  { id: "m1", material: "Cimento Portland CP II", unidade: "sc", quantidade: 180, obra: "Residencial Vista Verde", categoria: "Cimento", status: "Normal", ultimaMov: new Date(Date.now() - 86400000).toISOString() },
-  { id: "m2", material: "Brita 1", unidade: "m³", quantidade: 35, obra: "Edifício Central", categoria: "Agregados", status: "Baixo", ultimaMov: new Date(Date.now() - 3600000).toISOString() },
-  { id: "m3", material: "Areia Fina", unidade: "m³", quantidade: 15, obra: "Residencial Vista Verde", categoria: "Agregados", status: "Crítico", ultimaMov: new Date(Date.now() - 2 * 3600000).toISOString() },
-  { id: "m4", material: "Vergalhão 10mm", unidade: "un", quantidade: 420, obra: "Edifício Central", categoria: "Ferro/Aço", status: "Normal", ultimaMov: new Date(Date.now() - 3 * 3600000).toISOString() },
-  { id: "m5", material: "Bloco Cerâmico 9x19x39", unidade: "un", quantidade: 1200, obra: "Residencial Vista Verde", categoria: "Blocos", status: "Normal", ultimaMov: new Date(Date.now() - 6 * 3600000).toISOString() },
+// Mock data para inventário
+export const mockInventory: InventoryItem[] = [
+  {
+    id: "m1",
+    codigo: "CIM001",
+    descricao: "Cimento Portland CP II-E-32 50kg",
+    categoria: "Cimento e Concreto",
+    quantidade: 180,
+    unidade: "sc",
+    valorUnit: 32.50,
+    estoqueMin: 50,
+    estoqueMax: 300,
+    fornecedor: "Votorantim Cimentos",
+    ultimaEntrada: "2024-01-15T10:30:00Z",
+    status: 'normal'
+  },
+  {
+    id: "m2",
+    codigo: "AGR001",
+    descricao: "Brita 1 - Graduada",
+    categoria: "Agregados",
+    quantidade: 35,
+    unidade: "m³",
+    valorUnit: 110.00,
+    estoqueMin: 40,
+    estoqueMax: 100,
+    fornecedor: "Pedreira São João",
+    ultimaEntrada: "2024-01-14T14:20:00Z",
+    status: 'baixo'
+  },
+  {
+    id: "m3",
+    codigo: "AGR002",
+    descricao: "Areia Média Lavada",
+    categoria: "Agregados",
+    quantidade: 15,
+    unidade: "m³",
+    valorUnit: 95.00,
+    estoqueMin: 30,
+    estoqueMax: 80,
+    fornecedor: "Pedreira São João",
+    ultimaEntrada: "2024-01-12T09:45:00Z",
+    status: 'critico'
+  },
+  {
+    id: "m4",
+    codigo: "EST001",
+    descricao: "Vergalhão CA-50 12mm",
+    categoria: "Estrutura Metálica",
+    quantidade: 420,
+    unidade: "un",
+    valorUnit: 38.75,
+    estoqueMin: 200,
+    estoqueMax: 800,
+    fornecedor: "Gerdau Açominas",
+    ultimaEntrada: "2024-01-10T16:00:00Z",
+    status: 'normal'
+  },
+  {
+    id: "m5",
+    codigo: "ALV001",
+    descricao: "Bloco Cerâmico 9x19x39cm",
+    categoria: "Alvenaria",
+    quantidade: 1200,
+    unidade: "un",
+    valorUnit: 1.85,
+    estoqueMin: 500,
+    estoqueMax: 2000,
+    fornecedor: "Cerâmica Moderna",
+    ultimaEntrada: "2024-01-08T11:15:00Z",
+    status: 'normal'
+  },
+  {
+    id: "m6",
+    codigo: "TIN001",
+    descricao: "Tinta Acrílica Branca 18L",
+    categoria: "Tintas e Vernizes",
+    quantidade: 25,
+    unidade: "gl",
+    valorUnit: 185.00,
+    estoqueMin: 20,
+    estoqueMax: 60,
+    fornecedor: "Sherwin-Williams",
+    ultimaEntrada: "2024-01-05T13:30:00Z",
+    status: 'normal'
+  },
+  {
+    id: "m7",
+    codigo: "HID001",
+    descricao: "Tubo PVC 100mm 6m",
+    categoria: "Hidráulica",
+    quantidade: 80,
+    unidade: "un",
+    valorUnit: 45.20,
+    estoqueMin: 30,
+    estoqueMax: 120,
+    fornecedor: "Tigre S.A.",
+    ultimaEntrada: "2024-01-03T08:45:00Z",
+    status: 'normal'
+  },
+  {
+    id: "m8",
+    codigo: "ELE001",
+    descricao: "Cabo Flexível 2,5mm² 100m",
+    categoria: "Elétrica",
+    quantidade: 12,
+    unidade: "rl",
+    valorUnit: 320.00,
+    estoqueMin: 15,
+    estoqueMax: 40,
+    fornecedor: "Prysmian Group",
+    ultimaEntrada: "2024-01-02T15:20:00Z",
+    status: 'baixo'
+  }
 ];
 
-function load<T>(key: string, fallback: T): T {
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-function save<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-function delay<T>(v: T, ms = 300) {
-  return new Promise<T>((res) => setTimeout(() => res(v), ms));
-}
-
-function getInventory(): InventoryItem[] {
-  return load(LS_INV, seedItems);
-}
-function setInventory(items: InventoryItem[]) {
-  save(LS_INV, items);
-}
-function getMovementsMap(): Record<string, Movement[]> {
-  return load<Record<string, Movement[]>>(LS_MOV, {});
-}
-function setMovementsMap(map: Record<string, Movement[]>) {
-  save(LS_MOV, map);
-}
-
-function recalcStatus(qtd: number): InventoryStatus {
-  if (qtd <= 20) return "Crítico";
-  if (qtd <= 50) return "Baixo";
-  return "Normal";
-}
-
-export async function apiListInventory() {
-  return delay(getInventory());
-}
-export async function apiListMovements(materialId: string) {
-  const map = getMovementsMap();
-  return delay(map[materialId] ?? []);
-}
-
-export async function apiAddMovement(materialId: string, mov: Omit<Movement, "id" | "data"> & { quantidade: number }) {
-  const map = getMovementsMap();
-  const list = map[materialId] ?? [];
-  const movement: Movement = {
-    id: `${materialId}-${Date.now()}`,
-    data: new Date().toISOString(),
-    ...mov,
-  };
-  list.unshift(movement);
-  map[materialId] = list;
-  setMovementsMap(map);
-
-  const inv = getInventory();
-  const idx = inv.findIndex((i) => i.id === materialId);
-  if (idx >= 0) {
-    inv[idx].quantidade += mov.quantidade; // negativo para baixa
-    if (inv[idx].quantidade < 0) inv[idx].quantidade = 0;
-    inv[idx].status = recalcStatus(inv[idx].quantidade);
-    inv[idx].ultimaMov = movement.data;
-    setInventory(inv);
-  }
-
-  return delay(true);
-}
-
-export const inventoryKeys = {
-  root: ["inventory-items"] as const,
-  movements: (id: string) => ["inventory-movements", id] as const,
-};
-
-export function useInventory() {
-  return useQuery({ queryKey: inventoryKeys.root, queryFn: apiListInventory });
-}
-export function useMovements(materialId: string) {
-  return useQuery({ queryKey: inventoryKeys.movements(materialId), queryFn: () => apiListMovements(materialId), enabled: !!materialId });
-}
-export function useAddMovement() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ materialId, mov }: { materialId: string; mov: Omit<Movement, "id" | "data"> & { quantidade: number } }) => apiAddMovement(materialId, mov),
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: inventoryKeys.root }),
-        qc.invalidateQueries({ queryKey: inventoryKeys.movements(variables.materialId) }),
-      ]);
-    },
-  });
-}
-
-export const obrasOptions = ["Todas as obras", "Residencial Vista Verde", "Edifício Central"] as const;
-export const categoriaOptions = ["Todos", "Cimento", "Agregados", "Ferro/Aço", "Blocos", "Outros"] as const;
+export type { InventoryItem };

@@ -8,16 +8,20 @@ import ObrasEmAndamento from "@/pages/ObrasEmAndamento";
 import Projects from "@/pages/Projects";
 import Notifications from "@/pages/Notifications";
 import Feed from "@/pages/Feed";
-import Kanban from "@/pages/Kanban";
+import Kanban from "@/pages/KanbanFinal";
 import InventoryLayout from "@/pages/inventory/InventoryLayout";
 import Estoque from "@/pages/inventory/Estoque";
 import EntradaXML from "@/pages/inventory/EntradaXML";
 import BaixaManual from "@/pages/inventory/BaixaManual";
 import Relatorios from "@/pages/inventory/Relatorios";
+import InventoryPage from "@/pages/inventory/InventoryPage";
 import MapPage from "@/pages/Map";
 import Report from "@/pages/Report";
 import NotFound from "@/pages/NotFound";
 import SystemLog from "@/pages/SystemLog";
+import PerformanceOptimization from "@/pages/PerformanceOptimization";
+import ReportsPage from "@/pages/ReportsPage";
+import EnhancedDashboard from "@/pages/EnhancedDashboard";
 
 export const router = createBrowserRouter([
   {
@@ -48,9 +52,13 @@ export const router = createBrowserRouter([
           { path: "relatorios", element: <Relatorios /> },
         ],
       },
+      { path: "inventory-new", element: <InventoryPage /> },
       { path: "map", element: <MapPage /> },
       { path: "report/:id", element: <Report /> },
       { path: "system-log", element: <SystemLog /> },
+      { path: "performance", element: <PerformanceOptimization /> },
+      { path: "reports-advanced", element: <ReportsPage /> },
+      { path: "dashboard-enhanced", element: <EnhancedDashboard /> },
       { path: "*", element: <NotFound /> },
     ],
   },
