@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,71 +11,120 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Construction, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import PageHeader from '@/components/shared/PageHeader';
-import { useObras } from '@/integrations/supabase/hooks/useObras';
-import { useTasks } from '@/integrations/supabase/hooks/useTasks';
-import { LoadingPlaceholder } from '@/components/shared/States';
+import { AlertTriangle, AlertCircle, Info, Bell, FolderKanban, PackageSearch } from "lucide-react";
+import PageHeader from "@/components/shared/PageHeader";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
+import { useTasks } from "@/integrations/supabase/hooks/useTasks";
+import { useNotificacoes } from "@/integrations/supabase/hooks/useNotificacoes";
+import { LoadingPlaceholder } from "@/components/shared/States";
+import { useObraScope } from "@/app/obraScope";
+
+type StatusKey = "em_andamento" | "concluida" | "pausada";
+
+type PriorityCounters = {
+  alta: number;
+  media: number;
+  baixa: number;
+};
+
+function normalizeStatus(status?: string | null): StatusKey {
+  const value = status?.toLowerCase() ?? "";
+  if (value.includes("concl")) return "concluida";
+  if (value.includes("paus") || value.includes("paral")) return "pausada";
+  return "em_andamento";
+}
+
+function formatStatusBadge(status?: string | null) {
+  const key = normalizeStatus(status);
+  const label = status ?? "Em andamento";
+  if (key === "concluida") {
+    return <Badge variant="secondary">{label}</Badge>;
+  }
+  if (key === "pausada") {
+    return <Badge variant="outline">{label}</Badge>;
+  }
+  return <Badge variant="default">{label}</Badge>;
+}
+
+function normalizePriority(priority?: string | null): keyof PriorityCounters {
+  const value = priority?.toLowerCase() ?? "";
+  if (value.includes("alta")) return "alta";
+  if (value.includes("media")) return "media";
+  return "baixa";
+}
+
+function isTaskClosed(status?: string | null) {
+  const value = status?.toLowerCase() ?? "";
+  return value.includes("concl");
+}
 
 export default function ObrasEmAndamento() {
   const { data: obras = [], isLoading } = useObras();
   const { data: tasks = [] } = useTasks();
-  const [filtro, setFiltro] = useState<'todas' | 'atrasadas' | 'em_dia'>('todas');
+  const { data: notificacoes = [] } = useNotificacoes();
+  const { setObra } = useObraScope();
+  const navigate = useNavigate();
+  const [filtro, setFiltro] = useState<"todas" | StatusKey>("todas");
 
-  // Calculate progress based on tasks
-  const obrasWithProgress = useMemo(() => {
-    return obras.map(obra => {
-      const obraTasks = tasks.filter(task => task.obra_id === obra.id);
-      const completedTasks = obraTasks.filter(task => task.status === 'CONCLUÍDA').length;
-      const progresso = obraTasks.length > 0 ? Math.round((completedTasks / obraTasks.length) * 100) : 0;
-      
-      // Calculate pending tasks
-      const pendencias = obraTasks.filter(task => 
-        task.status === 'A FAZER' && 
-        task.prazo && 
-        new Date(task.prazo) < new Date()
+  const { itens, totaisPrioridade, totalNotificacoes, statusTotais } = useMemo(() => {
+    const totals: PriorityCounters = { alta: 0, media: 0, baixa: 0 };
+    let notificationsSum = 0;
+    const statusTotals: Record<StatusKey, number> = {
+      em_andamento: 0,
+      concluida: 0,
+      pausada: 0,
+    };
+
+    const enriched = obras.map((obra) => {
+      const obraTasks = tasks.filter((task) => task.obra_id === obra.id);
+      const pendingTasks = obraTasks.filter((task) => !isTaskClosed(task.status));
+      const counters: PriorityCounters = { alta: 0, media: 0, baixa: 0 };
+      pendingTasks.forEach((task) => {
+        const key = normalizePriority(task.prioridade);
+        counters[key] += 1;
+        totals[key] += 1;
+      });
+
+      const unreadNotifications = notificacoes.filter(
+        (notif) => notif.obra_id === obra.id && !notif.lida
       ).length;
-      
-      // Determine status
-      let status: 'em_andamento' | 'concluida' | 'atrasada' = 'em_andamento';
-      if (progresso === 100) {
-        status = 'concluida';
-      } else if (pendencias > 0 || (obra.previsao_conclusao && new Date(obra.previsao_conclusao) < new Date())) {
-        status = 'atrasada';
-      }
-      
+      notificationsSum += unreadNotifications;
+
+      const statusKey = normalizeStatus(obra.status);
+      statusTotals[statusKey] += 1;
+
       return {
-        ...obra,
-        progresso,
-        status,
-        pendencias
+        obra,
+        counters,
+        statusKey,
+        unreadNotifications,
       };
     });
-  }, [obras, tasks]);
 
-  const obrasFiltered = obrasWithProgress.filter(obra => {
-    if (filtro === 'todas') return true;
-    if (filtro === 'atrasadas') return obra.status === 'atrasada';
-    return obra.status === 'em_andamento';
-  });
+    return {
+      itens: enriched,
+      totaisPrioridade: totals,
+      totalNotificacoes: notificationsSum,
+      statusTotais: statusTotals,
+    };
+  }, [obras, tasks, notificacoes]);
 
-  const getStatusBadge = (status: 'em_andamento' | 'concluida' | 'atrasada') => {
-    switch (status) {
-      case 'em_andamento':
-        return <Badge variant="default"><Construction className="mr-1 h-3 w-3" /> Em Andamento</Badge>;
-      case 'atrasada':
-        return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3" /> Atrasada</Badge>;
-      case 'concluida':
-        return <Badge variant="default"><CheckCircle2 className="mr-1 h-3 w-3" /> Concluída</Badge>;
-    }
+  const filtrados = useMemo(() => {
+    if (filtro === "todas") return itens;
+    return itens.filter((item) => item.statusKey === filtro);
+  }, [itens, filtro]);
+
+  const handleNavigate = (obraNome: string, destino: "kanban" | "notifications" | "inventory" | "feed") => {
+    setObra(obraNome);
+    navigate(`/${destino}`);
   };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Obras em Andamento"
-          subtitle="Listagem de obras com status e progresso"
+          title="Obras em andamento"
+          subtitle="Listagem de obras por status e pendencias"
         />
         <LoadingPlaceholder rows={6} />
       </div>
@@ -85,106 +134,154 @@ export default function ObrasEmAndamento() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Obras em Andamento"
-        subtitle="Listagem de obras com status e progresso"
+        title="Obras em andamento"
+        subtitle="Visualize tarefas pendentes, notificacoes e acoes por obra"
       />
 
-      {/* Cards de Resumo */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Total de Obras
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de obras</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{obrasWithProgress.length}</div>
+            <div className="text-2xl font-bold">{itens.length}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Obras Atrasadas
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Obras em andamento</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {obrasWithProgress.filter(o => o.status === 'atrasada').length}
+            <div className="text-2xl font-bold">{statusTotais.em_andamento}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Tarefas pendentes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" /> Alta: {totaisPrioridade.alta}
+            </div>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-warning" /> Media: {totaisPrioridade.media}
+            </div>
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-muted-foreground" /> Baixa: {totaisPrioridade.baixa}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Pendências Totais
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Notificacoes abertas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {obrasWithProgress.reduce((acc, obra) => acc + obra.pendencias, 0)}
-            </div>
+            <div className="text-2xl font-bold text-primary">{totalNotificacoes}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-2">
-        <Button 
-          variant={filtro === 'todas' ? 'default' : 'outline'}
-          onClick={() => setFiltro('todas')}
+        <Button
+          variant={filtro === "todas" ? "default" : "outline"}
+          onClick={() => setFiltro("todas")}
         >
           Todas
         </Button>
         <Button
-          variant={filtro === 'atrasadas' ? 'default' : 'outline'}
-          onClick={() => setFiltro('atrasadas')}
+          variant={filtro === "em_andamento" ? "default" : "outline"}
+          onClick={() => setFiltro("em_andamento")}
         >
-          Atrasadas
+          Em andamento
         </Button>
         <Button
-          variant={filtro === 'em_dia' ? 'default' : 'outline'}
-          onClick={() => setFiltro('em_dia')}
+          variant={filtro === "concluida" ? "default" : "outline"}
+          onClick={() => setFiltro("concluida")}
         >
-          Em Dia
+          Concluidas
+        </Button>
+        <Button
+          variant={filtro === "pausada" ? "default" : "outline"}
+          onClick={() => setFiltro("pausada")}
+        >
+          Pausadas
         </Button>
       </div>
 
-      {/* Tabela de Obras */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Obra</TableHead>
+                <TableHead>Tarefas pendentes</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Progresso</TableHead>
-                <TableHead>Previsão</TableHead>
-                <TableHead>Responsável</TableHead>
-                <TableHead>Pendências</TableHead>
+                <TableHead>Pendencias</TableHead>
+                <TableHead>Responsavel</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {obrasFiltered.map((obra) => (
-                <TableRow key={obra.id}>
-                  <TableCell className="font-medium">{obra.nome}</TableCell>
-                  <TableCell>{getStatusBadge(obra.status)}</TableCell>
-                  <TableCell>
-                    <div className="w-[100px]">
-                      <Progress value={obra.progresso} className="h-2" />
-                      <span className="text-xs text-muted-foreground mt-1">
-                        {obra.progresso}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{obra.previsao_conclusao ? new Date(obra.previsao_conclusao).toLocaleDateString() : '-'}</TableCell>
-                  <TableCell>{obra.responsavel || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant={obra.pendencias > 0 ? "warning" : "success"}>
-                      {obra.pendencias}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtrados.map(({ obra, counters, unreadNotifications }) => {
+                const obraNome = obra.nome;
+                return (
+                  <TableRow key={obra.id}>
+                    <TableCell className="align-top">
+                      <div className="flex flex-col gap-2">
+                        <span className="font-medium">{obraNome}</span>
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 h-auto"
+                            onClick={() => handleNavigate(obraNome, "feed")}
+                          >
+                            <FolderKanban className="h-3.5 w-3.5 mr-1" /> Feed de registros
+                          </Button>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 h-auto"
+                            onClick={() => handleNavigate(obraNome, "inventory")}
+                          >
+                            <PackageSearch className="h-3.5 w-3.5 mr-1" /> Controle de estoque
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <button
+                        type="button"
+                        className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        onClick={() => handleNavigate(obraNome, "kanban")}
+                      >
+                        <span className="flex items-center gap-1 text-destructive">
+                          <AlertTriangle className="h-4 w-4" /> {counters.alta}
+                        </span>
+                        <span className="flex items-center gap-1 text-warning">
+                          <AlertCircle className="h-4 w-4" /> {counters.media}
+                        </span>
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Info className="h-4 w-4" /> {counters.baixa}
+                        </span>
+                      </button>
+                    </TableCell>
+                    <TableCell className="align-top">{formatStatusBadge(obra.status)}</TableCell>
+                    <TableCell className="align-top">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        onClick={() => handleNavigate(obraNome, "notifications")}
+                      >
+                        <Bell className="h-4 w-4 text-primary" />
+                        <span>{unreadNotifications}</span>
+                      </button>
+                    </TableCell>
+                    <TableCell className="align-top text-sm text-muted-foreground">
+                      {obra.responsavel || "-"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

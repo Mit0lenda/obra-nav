@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useObras } from "@/integrations/supabase/hooks/useObras";
-import type { MaterialInsert } from "@/integrations/supabase/hooks/useMateriais";
+import { MaterialInsertDTO } from "@/types/dto";
 
 type MaterialFormData = {
   nome: string;
@@ -17,7 +17,7 @@ type MaterialFormData = {
 
 interface MaterialFormProps {
   initialData?: Partial<MaterialFormData>;
-  onSubmit: (data: MaterialInsert) => Promise<void>;
+  onSubmit: (data: MaterialInsertDTO) => Promise<void>;
   onCancel: () => void;
   isEdit?: boolean;
 }

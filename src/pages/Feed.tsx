@@ -1,256 +1,398 @@
+﻿import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "@/components/shared/PageHeader";
-import { useMemo, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, FileText, Package, TrendingUp, Search } from "lucide-react";
-import { fmtDate, fmtDateTime } from "@/lib/date";
-import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ClipboardCheck, Package, TrendingUp, FileText, Search } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
-import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useTasks } from "@/integrations/supabase/hooks/useTasks";
 import { useRelatorios } from "@/integrations/supabase/hooks/useRelatorios";
 import { useAtualizacoesProgresso } from "@/integrations/supabase/hooks/useAtualizacoesProgresso";
 import { useObras } from "@/integrations/supabase/hooks/useObras";
+import { fmtDateTime } from "@/lib/date";
+import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
+
+type TaskRecord = {
+  id: string;
+  titulo?: string;
+  descricao?: string;
+  tipo?: string;
+  prioridade?: string;
+  data_criacao?: string;
+  created_at?: string;
+  updated_at?: string;
+  responsavel?: string;
+  area?: string;
+  obra?: { nome?: string | null } | null;
+  obra_id?: string | null;
+};
+
+type RelatorioRecord = {
+  id: string;
+  titulo?: string;
+  resumo?: string;
+  status?: string;
+  data_publicacao?: string;
+  created_at?: string;
+  obra_id?: string | null;
+};
+
+type ProgressRecord = {
+  id: string;
+  descricao?: string;
+  marco?: string;
+  data?: string;
+  created_at?: string;
+  relatorio_id?: string | null;
+};
+
+type FeedEntryType = "task" | "report" | "progress";
+
+interface TaskFeedEntry {
+  id: string;
+  kind: "task";
+  timestamp: Date;
+  data: TaskRecord & { obraNome?: string | null };
+}
+
+interface ReportFeedEntry {
+  id: string;
+  kind: "report";
+  timestamp: Date;
+  data: RelatorioRecord;
+}
+
+interface ProgressFeedEntry {
+  id: string;
+  kind: "progress";
+  timestamp: Date;
+  data: { update: ProgressRecord; relatorio: RelatorioRecord };
+}
+
+type FeedEntry = TaskFeedEntry | ReportFeedEntry | ProgressFeedEntry;
+
+type TypeFilter = "all" | FeedEntryType;
+
+function isTaskClosed(status?: string | null) {
+  const value = status?.toLowerCase() ?? "";
+  return value.includes("concl");
+}
+
+function priorityLabel(priority?: string | null) {
+  const value = priority?.toLowerCase() ?? "";
+  if (value.includes("alta")) return "Alta";
+  if (value.includes("media")) return "Media";
+  if (value.includes("baixa")) return "Baixa";
+  return "Nao informada";
+}
+
+function priorityBadgeClass(priority?: string | null) {
+  const value = priority?.toLowerCase() ?? "";
+  if (value.includes("alta")) return "bg-[hsl(var(--problem))] text-[hsl(var(--problem-foreground))]";
+  if (value.includes("media")) return "bg-[hsl(var(--report))] text-[hsl(var(--report-foreground))]";
+  if (value.includes("baixa")) return "bg-[hsl(var(--progress))] text-[hsl(var(--progress-foreground))]";
+  return "bg-muted text-muted-foreground";
+}
+
+function taskVisualMeta(tipo?: string | null) {
+  const value = tipo?.toLowerCase() ?? "";
+  if (value.includes("proble")) {
+    return {
+      label: "Problema",
+      border: "border-[hsl(var(--problem))]",
+      background: "bg-[hsl(var(--problem-light))]",
+      Icon: AlertTriangle,
+    };
+  }
+  if (value.includes("material")) {
+    return {
+      label: "Solicitacao de materiais",
+      border: "border-[hsl(var(--material))]",
+      background: "bg-[hsl(var(--material-light))]",
+      Icon: Package,
+    };
+  }
+  return {
+    label: "Servico",
+    border: "border-[hsl(var(--progress))]",
+    background: "bg-[hsl(var(--progress-light))]",
+    Icon: ClipboardCheck,
+  };
+}
+
+function isReportVisible(status?: string | null) {
+  if (!status) return true;
+  const value = status.toLowerCase();
+  return value.includes("public") || value.includes("apro") || value.includes("final");
+}
 
 export default function Feed() {
+  const { obra: scope } = useObraScope();
   const { data: tasks = [], isLoading: loadingTasks } = useTasks();
-  const { data: relatorios = [], isLoading: loadingRelatorios } = useRelatorios();
-  const { data: progressUpdates = [], isLoading: loadingProgress } = useAtualizacoesProgresso();
+  const { data: relatorios = [], isLoading: loadingReports } = useRelatorios();
+  const { data: progress = [], isLoading: loadingProgress } = useAtualizacoesProgresso();
   const { data: obras = [] } = useObras();
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
-  const [type, setType] = useState("all");
-  const [order, setOrder] = useState<"desc" | "asc">("desc");
   const navigate = useNavigate();
-  const { obra: obraScope } = useObraScope();
-  
-  const isLoading = loadingTasks || loadingRelatorios || loadingProgress;
 
-  // Debounce search query
-  const debouncedSetSearch = useDebounce((value: string) => {
-    setDebouncedQ(value);
-  }, 300);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [order, setOrder] = useState<"desc" | "asc">("desc");
 
-  useEffect(() => {
-    debouncedSetSearch(q);
-  }, [q, debouncedSetSearch]);
+  const obraNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    obras.forEach((obra) => {
+      if (obra?.id && obra?.nome) {
+        map.set(obra.id, obra.nome);
+      }
+    });
+    return map;
+  }, [obras]);
 
-  // Persist filters
-  const LS_FEED = 'nexium_feed_filters_v1';
-  useEffect(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem(LS_FEED) || '{}');
-      if (s.type) setType(s.type);
-      if (s.order) setOrder(s.order);
-    } catch {}
-  }, []);
-  useEffect(() => {
-    localStorage.setItem(LS_FEED, JSON.stringify({ type, order }));
-  }, [type, order]);
+  const entries = useMemo<FeedEntry[]>(() => {
+    if (!scope || scope === "todas") return [];
 
-  // Create unified feed items
-  const items = useMemo(() => {
-    const feedItems: any[] = [];
-    
-    // Add tasks
-    tasks.forEach(task => {
-      const obra = obras.find(o => o.id === task.obra_id);
-      feedItems.push({
+    const relatorioById = new Map(relatorios.map((rel) => [rel.id, rel]));
+    const items: FeedEntry[] = [];
+
+    (tasks as TaskRecord[]).forEach((task) => {
+      const obraNome = task.obra?.nome ?? (task.obra_id ? obraNameById.get(task.obra_id) : undefined);
+      if (obraNome !== scope) return;
+      if (!isTaskClosed(task.status)) return;
+      const completedAt = task.updated_at ?? task.created_at ?? task.data_criacao ?? new Date().toISOString();
+      items.push({
         id: `task-${task.id}`,
-        type: 'task',
-        date: new Date(task.created_at || ''),
-        data: {
-          ...task,
-          obra: obra?.nome || 'Obra não encontrada',
-          title: task.titulo,
-          description: task.descricao,
-          priority: task.prioridade === 'alta' ? 'Alta' : task.prioridade === 'media' ? 'Média' : 'Baixa',
-          kanbanEntryDate: task.data_criacao,
-          completionDate: task.prazo,
-        }
+        kind: "task",
+        timestamp: new Date(completedAt),
+        data: { ...task, obraNome: obraNome ?? scope },
       });
     });
-    
-    // Add reports
-    relatorios.forEach(relatorio => {
-      const obra = obras.find(o => o.id === relatorio.obra_id);
-      feedItems.push({
-        id: `report-${relatorio.id}`,
-        type: 'report',
-        date: new Date(relatorio.created_at || ''),
-        data: {
-          ...relatorio,
-          obra: obra?.nome || 'Obra não encontrada',
-          publishDate: relatorio.data_publicacao,
-          summary: relatorio.resumo,
-          characteristics: relatorio.caracteristicas || [],
-        }
+
+    (relatorios as RelatorioRecord[])
+      .filter((rel) => rel.obra_id && obraNameById.get(rel.obra_id) === scope)
+      .filter((rel) => isReportVisible(rel.status))
+      .forEach((rel) => {
+        const publishedAt = rel.data_publicacao ?? rel.created_at ?? new Date().toISOString();
+        items.push({
+          id: `report-${rel.id}`,
+          kind: "report",
+          timestamp: new Date(publishedAt),
+          data: rel,
+        });
       });
-    });
-    
-    // Add progress updates
-    progressUpdates.forEach(update => {
-      feedItems.push({
+
+    (progress as ProgressRecord[]).forEach((update) => {
+      if (!update.relatorio_id) return;
+      const rel = relatorioById.get(update.relatorio_id);
+      if (!rel) return;
+      const obraNome = rel.obra_id ? obraNameById.get(rel.obra_id) : undefined;
+      if (obraNome !== scope) return;
+      const eventDate = update.data ?? update.created_at ?? new Date().toISOString();
+      items.push({
         id: `progress-${update.id}`,
-        type: 'progress',
-        date: new Date(update.data || ''),
-        data: {
-          ...update,
-          milestone: update.marco,
-          description: update.descricao,
-        }
+        kind: "progress",
+        timestamp: new Date(eventDate),
+        data: { update, relatorio: rel },
       });
     });
-    
-    return feedItems;
-  }, [tasks, relatorios, progressUpdates, obras]);
+
+    return items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [scope, tasks, relatorios, progress, obraNameById]);
 
   const filtered = useMemo(() => {
-    const arr = items
-      .filter((i) => (type === "all" ? true : i.type === (type as any)))
-      .filter((i) => {
-        // Filter by obra scope
-        const obra = (i.data as any)?.obra;
-        return obraScope === "todas" || obra === obraScope;
+    const query = search.trim().toLowerCase();
+    return entries
+      .filter((entry) => (typeFilter === "all" ? true : entry.kind === typeFilter))
+      .filter((entry) => {
+        if (!query) return true;
+        if (entry.kind === "task") {
+          const task = entry.data;
+          const text = `${task.titulo ?? ""} ${task.descricao ?? ""} ${task.area ?? ""}`.toLowerCase();
+          return text.includes(query);
+        }
+        if (entry.kind === "report") {
+          const rel = entry.data;
+          const text = `${rel.titulo ?? ""} ${rel.resumo ?? ""}`.toLowerCase();
+          return text.includes(query);
+        }
+        const { update } = entry.data;
+        const text = `${update.marco ?? ""} ${update.descricao ?? ""}`.toLowerCase();
+        return text.includes(query);
       })
-      .filter((i) => {
-        if (!debouncedQ) return true;
-        const text = JSON.stringify(i.data).toLowerCase();
-        return text.includes(debouncedQ.toLowerCase());
-      })
-      .sort((a, b) => (order === "desc" ? b.date.getTime() - a.date.getTime() : a.date.getTime() - b.date.getTime()));
-    return arr;
-  }, [items, debouncedQ, type, order, obraScope]);
+      .sort((a, b) => {
+        if (order === "desc") {
+          return b.timestamp.getTime() - a.timestamp.getTime();
+        }
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
+  }, [entries, search, typeFilter, order]);
 
-  const resetFilters = () => {
-    setQ("");
-    setType("all");
-    setOrder("desc");
-  };
+  const isLoading = loadingTasks || loadingReports || loadingProgress;
+
+  if (!scope || scope === "todas") {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Feed de registros" subtitle="Selecione uma obra para visualizar o feed" />
+        <EmptyState message="Escolha uma obra no seletor do topo para carregar o feed de registros." />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Feed de Registros" 
-        subtitle={`Tarefas, relatórios e progresso ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`} 
+      <PageHeader
+        title="Feed de registros"
+        subtitle={`Eventos da obra ${scope}: tarefas concluidas, relatorios e marcos`}
       />
 
       <div className="rounded-lg border p-3 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
+            <Input
+              placeholder="Buscar por titulo ou descricao"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input placeholder="Buscar..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
           </div>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <Select value={typeFilter} onValueChange={(value: TypeFilter) => setTypeFilter(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos os tipos</SelectItem>
               <SelectItem value="task">Tarefas</SelectItem>
-              <SelectItem value="report">Relatórios</SelectItem>
+              <SelectItem value="report">Relatorios</SelectItem>
               <SelectItem value="progress">Progresso</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={order} onValueChange={(v) => setOrder(v as any)}>
-            <SelectTrigger><SelectValue placeholder="Ordenação" /></SelectTrigger>
+          <Select value={order} onValueChange={(value: "asc" | "desc") => setOrder(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Ordenacao" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="desc">Mais recentes</SelectItem>
-              <SelectItem value="asc">Mais antigos</SelectItem>
+              <SelectItem value="desc">Mais recentes primeiro</SelectItem>
+              <SelectItem value="asc">Mais antigos primeiro</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {(q || type !== "all") && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            Encontrados: {filtered.length} 
-            <Button variant="link" size="sm" className="h-auto p-0" onClick={resetFilters}>
-              Limpar filtros
-            </Button>
-          </div>
-        )}
+      </div>
 
-        {isLoading ? (
-          <LoadingPlaceholder rows={3} />
-        ) : filtered.length === 0 ? (
-          <EmptyState 
-            message="Nenhum item encontrado" 
-            actionLabel="Limpar filtros" 
-            onAction={resetFilters} 
-          />
-        ) : (
-          <div className="space-y-2">
-            {filtered.map((it) => {
-              if (it.type === "task") {
-                const t = it.data as any;
-                const isProblem = t.type === "Problemas";
-                const Icon = isProblem ? AlertTriangle : Package;
-                const bgCls = isProblem
-                  ? "bg-[hsl(var(--problem-light))] border-[hsl(var(--problem))]"
-                  : "bg-[hsl(var(--material-light))] border-[hsl(var(--material))]";
-                return (
-                  <article key={it.id} className={`rounded-lg border-l-4 p-3 animate-fade-in ${bgCls}`}>
-                    <div className="flex items-start gap-3">
-                      <Icon className="h-5 w-5 text-primary mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-medium leading-tight">{t.title}</h3>
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-md"
-                            style={{ backgroundColor: isProblem ? "hsl(var(--problem))" : t.priority === "Média" ? "hsl(var(--report))" : "hsl(var(--progress))", color: "hsl(var(--foreground))" }}
-                          >
-                            Prioridade: {t.priority}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{t.description}</p>
-                        <div className="text-xs text-muted-foreground mt-1">Kanban: {fmtDate(t.kanbanEntryDate)} · Conclusão: {fmtDateTime(t.completionDate)}</div>
-                      </div>
-                    </div>
-                  </article>
-                );
-              }
-              if (it.type === "report") {
-                const r = it.data as any;
-                return (
-                  <button key={it.id} onClick={() => navigate(`/report/${r.id}`)} className="w-full text-left rounded-lg border-l-4 p-3 animate-fade-in bg-[hsl(var(--report-light))] border-[hsl(var(--report))] hover-scale">
-                    <div className="flex items-start gap-3">
-                      <FileText className="h-5 w-5 text-primary mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-medium leading-tight">{r.title}</h3>
-                          <span className="text-xs px-2 py-0.5 rounded-md border">{r.status}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{r.summary}</p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {r.characteristics.map((c: string) => (
-                            <span key={c} className="text-xs px-2 py-0.5 rounded-md border">{c}</span>
-                          ))}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">Publicação: {fmtDateTime(r.publishDate)}</div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              }
-              const p = it.data as any;
+      {isLoading ? (
+        <LoadingPlaceholder rows={4} />
+      ) : filtered.length === 0 ? (
+        <EmptyState message="Nenhum registro encontrado para esta obra" />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((entry) => {
+            if (entry.kind === "task") {
+              const task = entry.data;
+              const visual = taskVisualMeta(task.tipo);
+              const { Icon } = visual;
               return (
-                <article key={it.id} className="rounded-lg border-l-4 p-3 animate-fade-in bg-[hsl(var(--progress-light))] border-[hsl(var(--progress))]">
+                <article
+                  key={entry.id}
+                  className={`rounded-lg border-l-4 p-4 ${visual.background} ${visual.border}`}
+                >
                   <div className="flex items-start gap-3">
-                    <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
-                    <div className="flex-1">
+                    <Icon className="h-5 w-5 text-primary mt-1" />
+                    <div className="flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium leading-tight">{p.milestone}</h3>
-                        <span className="text-xs px-2 py-0.5 rounded-md border">Marco</span>
+                        <h3 className="font-medium text-sm md:text-base">{task.titulo}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-md border bg-background">
+                          {visual.label}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-md ${priorityBadgeClass(task.prioridade)}`}>
+                          Prioridade: {priorityLabel(task.prioridade)}
+                        </span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{p.description}</p>
-                      <div className="text-xs text-muted-foreground mt-1">{fmtDateTime(p.date)}</div>
+                      {task.descricao && (
+                        <p className="text-sm text-muted-foreground">{task.descricao}</p>
+                      )}
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
+                        <span>Entrada no kanban: {task.data_criacao ? fmtDateTime(task.data_criacao) : "-"}</span>
+                        <span>Conclusao: {fmtDateTime(entry.timestamp)}</span>
+                        {task.responsavel && <span>Responsavel: {task.responsavel}</span>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 h-7 text-xs"
+                        onClick={() => navigate("/kanban")}
+                      >
+                        Abrir no Kanban
+                      </Button>
                     </div>
                   </div>
                 </article>
               );
-            })}
-          </div>
-        )}
-      </div>
+            }
+
+            if (entry.kind === "report") {
+              const rel = entry.data;
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => navigate(`/report/${rel.id}`)}
+                  className="w-full text-left rounded-lg border-l-4 p-4 bg-[hsl(var(--report-light))] border-[hsl(var(--report))] hover:bg-[hsl(var(--report-light))]/80 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <FileText className="h-5 w-5 text-primary mt-1" />
+                    <div className="flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-medium text-sm md:text-base">{rel.titulo}</h3>
+                        {rel.status && (
+                          <span className="text-xs px-2 py-0.5 rounded-md border bg-background">{rel.status}</span>
+                        )}
+                      </div>
+                      {rel.resumo && (
+                        <p className="text-sm text-muted-foreground">{rel.resumo}</p>
+                      )}
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
+                        <span>Publicado em: {fmtDateTime(rel.data_publicacao ?? rel.created_at ?? entry.timestamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            }
+
+            const { update, relatorio } = entry.data;
+            return (
+              <article
+                key={entry.id}
+                className="rounded-lg border-l-4 p-4 bg-[hsl(var(--progress-light))] border-[hsl(var(--progress))]"
+              >
+                <div className="flex items-start gap-3">
+                  <TrendingUp className="h-5 w-5 text-primary mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium text-sm md:text-base">{update.marco ?? "Marco de progresso"}</h3>
+                      <span className="text-xs px-2 py-0.5 rounded-md border bg-background">RDO</span>
+                    </div>
+                    {update.descricao && (
+                      <p className="text-sm text-muted-foreground">{update.descricao}</p>
+                    )}
+                    <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
+                      <span>Registrado em: {fmtDateTime(update.data ?? entry.timestamp)}</span>
+                      <span>Relatorio: {relatorio.titulo}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="px-2 h-7 text-xs"
+                      onClick={() => navigate(`/report/${relatorio.id}`)}
+                    >
+                      Abrir relatorio
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

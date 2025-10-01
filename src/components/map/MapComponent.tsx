@@ -92,9 +92,11 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     // Hydrate preferences on mount
     hydrateFromStorage();
 
+    // Store current markers reference for cleanup
+    const currentMarkers = markers.current;
     return () => {
-      markers.current.forEach(marker => marker.remove());
-      markers.current.clear();
+      currentMarkers.forEach(marker => marker.remove());
+      currentMarkers.clear();
       if (popup.current) {
         popup.current.remove();
         popup.current = null;
@@ -104,16 +106,17 @@ export function MapComponent({ className = '' }: MapComponentProps) {
         map.current = null;
       }
     };
-  }, []);
+  }, [addBuildingsLayer, hydrateFromStorage, viewMode]);
 
   // Add 3D buildings layer
   const addBuildingsLayer = useCallback(() => {
     if (!map.current) return;
 
     try {
+      // Using OpenMapTiles without API key requirement
       map.current.addSource('openmaptiles', {
         type: 'vector',
-        url: 'https://api.maptiler.com/tiles/v3/tiles.json?key=demo'
+        url: 'https://free-0.tilehosting.com/data/v3.json'
       });
 
       map.current.addLayer({
@@ -123,8 +126,8 @@ export function MapComponent({ className = '' }: MapComponentProps) {
         type: 'fill-extrusion',
         paint: {
           'fill-extrusion-color': '#aaa',
-          'fill-extrusion-height': ['get', 'render_height'],
-          'fill-extrusion-base': ['get', 'render_min_height'],
+          'fill-extrusion-height': ['case', ['has', 'height'], ['get', 'height'], 10],
+          'fill-extrusion-base': ['case', ['has', 'min_height'], ['get', 'min_height'], 0],
           'fill-extrusion-opacity': layers.opacity.buildings3D,
         }
       });
@@ -185,64 +188,23 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     setFilteredWorks(filtered);
   }, [works, filters.statuses, search]);
 
-  // Update markers
-  useEffect(() => {
-    if (!map.current || !layers.markers) return;
-
-    // Remove existing markers
-    markers.current.forEach(marker => marker.remove());
-    markers.current.clear();
-
-    // Add filtered markers with animation
-    filteredWorks.forEach((work, index) => {
-      setTimeout(() => {
-        addMarker(work);
-      }, index * 50); // Staggered animation
-    });
-  }, [filteredWorks, layers.markers]);
-
-  // Add single marker
-  const addMarker = useCallback((work: WorkItem) => {
-    if (!map.current) return;
-
-    const el = document.createElement('div');
-    el.className = `custom-marker status-${work.status} marker-enter`;
-    el.innerHTML = `
-      ${work.progress}%
-      <div class="marker-hover-label">${work.name}</div>
-    `;
-    
-    // Accessibility
-    el.setAttribute('role', 'button');
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-label', `Obra ${work.name}, ${work.progress}% concluída, status: ${work.status}`);
-    el.setAttribute('aria-describedby', `marker-${work.id}`);
-
-    // Click and keyboard handlers
-    const handleInteraction = (e: Event) => {
-      e.stopPropagation();
-      showPopup(work);
-    };
-
-    el.addEventListener('click', handleInteraction);
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleInteraction(e);
-      }
-    });
-
-    const marker = new maplibregl.Marker({ element: el })
-      .setLngLat(work.coordinates)
-      .addTo(map.current);
-
-    markers.current.set(work.id, marker);
-
-    // Update selected state
-    if (selectedWorkId === work.id) {
+  // Track work (highlight for 5s)
+  const trackWork = useCallback((work: WorkItem) => {
+    const marker = markers.current.get(work.id);
+    if (marker) {
+      const el = marker.getElement();
       el.classList.add('selected');
+      
+      setTimeout(() => {
+        el.classList.remove('selected');
+      }, 5000);
     }
-  }, [selectedWorkId]);
+  }, []);
+
+  // View details (stub)
+  const viewDetails = useCallback((work: WorkItem) => {
+    console.log('View details:', work);
+  }, []);
 
   // Show popup
   const showPopup = useCallback((work: WorkItem) => {
@@ -288,25 +250,66 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     popup.current.on('close', () => {
       selectWork(null);
     });
-  }, [selectWork]);
+  }, [selectWork, trackWork, viewDetails]);
 
-  // Track work (highlight for 5s)
-  const trackWork = useCallback((work: WorkItem) => {
-    const marker = markers.current.get(work.id);
-    if (marker) {
-      const el = marker.getElement();
+  // Add single marker
+  const addMarker = useCallback((work: WorkItem) => {
+    if (!map.current) return;
+
+    const el = document.createElement('div');
+    el.className = `custom-marker status-${work.status} marker-enter`;
+    el.innerHTML = `
+      ${work.progress}%
+      <div class="marker-hover-label">${work.name}</div>
+    `;
+    
+    // Accessibility
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', `Obra ${work.name}, ${work.progress}% concluída, status: ${work.status}`);
+    el.setAttribute('aria-describedby', `marker-${work.id}`);
+
+    // Click and keyboard handlers
+    const handleInteraction = (e: Event) => {
+      e.stopPropagation();
+      showPopup(work);
+    };
+
+    el.addEventListener('click', handleInteraction);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleInteraction(e);
+      }
+    });
+
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat(work.coordinates)
+      .addTo(map.current);
+
+    markers.current.set(work.id, marker);
+
+    // Update selected state
+    if (selectedWorkId === work.id) {
       el.classList.add('selected');
-      
-      setTimeout(() => {
-        el.classList.remove('selected');
-      }, 5000);
     }
-  }, []);
+  }, [selectedWorkId, showPopup]);
 
-  // View details (stub)
-  const viewDetails = useCallback((work: WorkItem) => {
-    console.log('View details:', work);
-  }, []);
+  // Update markers
+  useEffect(() => {
+    if (!map.current || !layers.markers) return;
+
+    // Remove existing markers
+    markers.current.forEach(marker => marker.remove());
+    markers.current.clear();
+
+    // Add filtered markers with animation
+    filteredWorks.forEach((work, index) => {
+      setTimeout(() => {
+        addMarker(work);
+      }, index * 50); // Staggered animation
+    });
+  }, [filteredWorks, layers.markers, addMarker]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -339,7 +342,7 @@ export function MapComponent({ className = '' }: MapComponentProps) {
 
     document.addEventListener('keydown', handleKeydown);
     return () => document.removeEventListener('keydown', handleKeydown);
-  }, [viewMode]);
+  }, [viewMode, selectWork]);
 
   if (error) {
     return (

@@ -1,38 +1,53 @@
 import { Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useMemo } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./Sidebar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useObrasFromTasks } from "@/data/mockFeed";
 import { useObraScope } from "@/app/obraScope";
-import { useEffect } from "react";
 import GlobalSearch from "@/components/shared/GlobalSearch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, User } from "lucide-react";
+import { useObras } from "@/integrations/supabase/hooks/useObras";
 
 export default function AppLayout() {
-  const { data: obrasTasks = [] } = useObrasFromTasks();
+  const { data: obras = [] } = useObras();
+  const obraOptions = useMemo(() => {
+    const unique = new Set<string>();
+    obras.forEach((obra) => {
+      if (obra?.nome) {
+        unique.add(obra.nome);
+      }
+    });
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+  }, [obras]);
+
   const { obra, setObra } = useObraScope();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+
   useEffect(() => {
     let awaitingKey: string | null = null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'g') {
-        awaitingKey = 'g';
+      if (e.key === "g") {
+        awaitingKey = "g";
         return;
       }
-      if (awaitingKey === 'g') {
-        if (e.key === 'n') navigate('/notifications');
-        if (e.key === 'k') navigate('/kanban');
-        if (e.key === 'i') navigate('/inventory');
+      if (awaitingKey === "g") {
+        if (e.key === "n") navigate("/notifications");
+        if (e.key === "k") navigate("/kanban");
+        if (e.key === "i") navigate("/inventory");
         awaitingKey = null;
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [navigate]);
+
+  const selectOptions = obra === "todas" || obraOptions.includes(obra)
+    ? obraOptions
+    : [...obraOptions, obra];
 
   return (
     <SidebarProvider>
@@ -41,8 +56,8 @@ export default function AppLayout() {
         <div className="flex-1 flex flex-col">
           <header className="h-14 flex items-center border-b px-3 gap-2">
             <SidebarTrigger className="mr-1" />
-            <h1 className="text-sm font-medium text-muted-foreground">Nexium — Gestão de Obras</h1>
-              <div className="ml-auto flex items-center gap-3">
+            <h1 className="text-sm font-medium text-muted-foreground">Nexium - Gestao de Obras</h1>
+            <div className="ml-auto flex items-center gap-3">
               <GlobalSearch />
               <div className="w-56">
                 <Select value={obra} onValueChange={setObra}>
@@ -51,8 +66,10 @@ export default function AppLayout() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todas as obras</SelectItem>
-                    {obrasTasks.map((o) => (
-                      <SelectItem key={o} value={o}>{o}</SelectItem>
+                    {selectOptions.map((nome) => (
+                      <SelectItem key={nome} value={nome}>
+                        {nome}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -62,8 +79,8 @@ export default function AppLayout() {
                   Escopo: {obra}
                 </Badge>
               )}
-              <span className="text-xs text-success">● Sistema Online</span>
-              
+              <span className="text-xs text-success">Sistema Online</span>
+
               <div className="flex items-center gap-2 border-l pl-3">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">

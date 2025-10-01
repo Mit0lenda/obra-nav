@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapWork } from './useMapData';
 import 'leaflet/dist/leaflet.css';
 import '@/styles/map.css';
 
-// Fix Leaflet default icon path issues
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+type IconPrototype = typeof L.Icon.Default.prototype & {
+  _getIconUrl?: () => string;
+};
+
+const defaultIconPrototype = L.Icon.Default.prototype as IconPrototype;
+delete defaultIconPrototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -29,61 +33,36 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    try {
-      // Initialize map
-      mapRef.current = L.map(container, {
-        center: [-14.2350, -51.9253], // Centro do Brasil
-        zoom: 5, // Zoom inicial maior
-        minZoom: 2, // Permite ver mais do mapa mundial
-        maxZoom: 18, // Mantém zoom máximo para detalhes
-        wheelPxPerZoomLevel: 100, // Torna o zoom mais suave
-        maxBounds: [
-          [-60, -180], // Limite sul em -60 (abaixo da Antártida)
-          [60, 180]    // Limite norte em 60 (acima da Rússia/Canadá)
-        ],
-        maxBoundsViscosity: 0.8 // Força moderada para manter dentro dos limites
-      });
+    const map = L.map(container, {
+      center: [-14.2350, -51.9253],
+      zoom: 5,
+      minZoom: 2,
+      maxZoom: 18,
+      wheelPxPerZoomLevel: 100,
+      maxBounds: [
+        [-60, -180],
+        [60, 180],
+      ],
+      maxBoundsViscosity: 0.8,
+    });
 
-      // Add beautiful free map layers
-      // Option 1: CartoDB Voyager (clean, modern style)
+    mapRef.current = map;
+
+    try {
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
-        maxZoom: 20
-      }).addTo(mapRef.current);
+        maxZoom: 20,
+      }).addTo(map);
 
-      // Alternative options (uncomment to try different styles):
-      
-      // Option 2: CartoDB Positron (light, minimal)
-      // L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      //   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      //   subdomains: 'abcd'
-      // }).addTo(mapRef.current);
-
-      // Option 3: OpenStreetMap Standard
-      // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      //   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      //   maxZoom: 19
-      // }).addTo(mapRef.current);
-
-      // Option 4: Stamen Terrain (topographic style)
-      // L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}{r}.png', {
-      //   attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>',
-      //   subdomains: 'abcd'
-      // }).addTo(mapRef.current);
-
-      // If 3D is enabled, add terrain layer (optional, requires additional setup)
       if (is3D) {
-        // Note: True 3D is limited in Leaflet, but we can simulate some depth
-        mapRef.current.setView([-14.2350, -51.9253], 4, {
+        map.setView([-14.2350, -51.9253], 4, {
           animate: true,
-          duration: 1
+          duration: 1,
         });
       }
 
-      // Add markers
       works.forEach((work) => {
-        // Create custom icon based on progress
         const isActive = work.progresso > 0 && work.progresso < 100;
         const icon = L.divIcon({
           className: 'custom-div-icon',
@@ -93,13 +72,12 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
             </div>
           `,
           iconSize: [40, 40],
-          iconAnchor: [20, 20]
+          iconAnchor: [20, 20],
         });
 
-        const marker = L.marker([work.coords[1], work.coords[0]], { icon })
-          .addTo(mapRef.current!);
+        const marker = L.marker([work.coords[1], work.coords[0]], { icon });
+        marker.addTo(map);
 
-        // Add popup
         marker.bindPopup(`
           <div class="map-popup">
             <div class="map-popup-header">
@@ -119,10 +97,7 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
             </div>
 
             <div class="map-popup-progress">
-              <div 
-                class="map-popup-progress-fill" 
-                style="width: ${work.progresso}%; background-color: ${getMarkerColor(work.progresso)}"
-              ></div>
+              <div class="map-popup-progress-fill" style="width: ${work.progresso}%; background-color: ${getMarkerColor(work.progresso)}"></div>
             </div>
 
             <div class="map-popup-status">
@@ -130,8 +105,8 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
               <div class="map-popup-percentage">${work.progresso}%</div>
             </div>
 
-            <button 
-              id="goto-${work.id}" 
+            <button
+              id="goto-${work.id}"
               class="map-popup-button"
               onclick="window.dispatchEvent(new CustomEvent('markerClick', { detail: '${work.id}' }))"
             >
@@ -143,23 +118,22 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
           </div>
         `, {
           closeButton: true,
-          className: 'custom-popup'
+          className: 'custom-popup',
         });
 
         markersRef.current.push(marker);
       });
 
       setIsLoaded(true);
-
     } catch (err) {
       setError(err as Error);
     }
 
     return () => {
-      if (mapRef.current) {
-        markersRef.current.forEach(marker => marker.remove());
-        mapRef.current.remove();
-      }
+      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current = [];
+      map.remove();
+      mapRef.current = null;
     };
   }, [containerId, works, is3D]);
 
@@ -175,21 +149,22 @@ export function useMap({ containerId, works, onMarkerClick, is3D = false }: UseM
     return 'Obra em andamento';
   };
 
-  // Add event listener for marker clicks
   useEffect(() => {
     if (!onMarkerClick) return;
 
-    const handler = (e: CustomEvent<string>) => {
-      onMarkerClick(e.detail);
+    const handler = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') {
+        onMarkerClick(event.detail);
+      }
     };
 
-    window.addEventListener('markerClick', handler as EventListener);
-    return () => window.removeEventListener('markerClick', handler as EventListener);
+    window.addEventListener('markerClick', handler);
+    return () => window.removeEventListener('markerClick', handler);
   }, [onMarkerClick]);
 
   return {
     map: mapRef.current,
     isLoaded,
-    error
+    error,
   };
 }

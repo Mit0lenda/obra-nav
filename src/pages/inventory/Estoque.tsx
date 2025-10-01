@@ -1,4 +1,4 @@
-import PageHeader from "@/components/shared/PageHeader";
+﻿import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,7 +7,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { FixedSizeList as List } from "react-window";
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
-import { useMateriais, useCreateMaterial, useUpdateMaterial, useDeleteMaterial } from "@/integrations/supabase/hooks/useMateriais";
+import { useMateriais, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, MaterialInsert } from "@/integrations/supabase/hooks/useMateriais";
 import { useMovimentacoes } from "@/integrations/supabase/hooks/useMovimentacoes";
 import { useObras } from "@/integrations/supabase/hooks/useObras";
 import { fmtDate, fmtDateTime } from "@/lib/date";
@@ -25,7 +25,7 @@ type InventoryItem = {
   unidade: string;
   obra: string;
   categoria: string;
-  status: 'Normal' | 'Baixo' | 'Crítico';
+  status: 'Normal' | 'Baixo' | 'Critico';
   ultimaMov: string;
 };
 
@@ -46,19 +46,19 @@ export default function Estoque() {
     unidade: material.unidade || '',
     obra: material.obra?.nome || '',
     categoria: 'Material', // Default category
-    status: parseFloat(material.quantidade?.toString() || '0') === 0 ? 'Crítico' : 
+    status: parseFloat(material.quantidade?.toString() || '0') === 0 ? 'Critico' : 
             parseFloat(material.quantidade?.toString() || '0') < 10 ? 'Baixo' : 'Normal',
     ultimaMov: material.updated_at || material.created_at || new Date().toISOString()
   }));
 
-  const obrasOptions = ["Todas as obras", ...obrasData.map(obra => obra.nome)];
-  const categoriaOptions = ["Todos", "Material", "Ferramenta", "EPIs"];
+  const obrasOptions = useMemo(() => ["Todas as obras", ...obrasData.map((obra) => obra.nome)], [obrasData]);
+  const categoriaOptions: string[] = ["Todos", "Material", "Ferramenta", "EPIs"];
 
   type SortKey = 'quantidade' | 'ultimaMov';
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  const [obra, setObra] = useState<(typeof obrasOptions)[number]>("Todas as obras");
-  const [cat, setCat] = useState<(typeof categoriaOptions)[number]>("Todos");
+  const [obra, setObra] = useState<string>("Todas as obras");
+  const [cat, setCat] = useState<string>("Todos");
   const [sortBy, setSortBy] = useState<SortKey>('quantidade');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [dialogId, setDialogId] = useState<string | null>(null);
@@ -78,10 +78,10 @@ export default function Estoque() {
 
   // Sync with global obra scope
   useEffect(() => {
-    if (obraScope !== "todas" && obrasOptions.includes(obraScope as any)) {
-      setObra(obraScope as any);
+    if (obraScope !== "todas" && obrasOptions.includes(obraScope)) {
+      setObra(obraScope);
     }
-  }, [obraScope]);
+  }, [obraScope, obrasOptions]);
 
   // persist filters
   useEffect(() => {
@@ -94,7 +94,9 @@ export default function Estoque() {
         if (s.cat) setCat(s.cat);
         if (s.sortBy) setSortBy(s.sortBy);
         if (s.sortDir) setSortDir(s.sortDir);
-      } catch {}
+      } catch (error) {
+        console.warn("Falha ao restaurar filtros do estoque", error);
+      }
     }
   }, []);
   useEffect(() => {
@@ -128,7 +130,7 @@ export default function Estoque() {
   const movements = movimentacoes.map(mov => ({
     id: mov.id,
     data: mov.created_at || new Date().toISOString(),
-    tipo: mov.tipo === 'Entrada' ? 'Entrada' : 'Saída',
+    tipo: mov.tipo === 'Entrada' ? 'Entrada' : 'Saida',
     quantidade: parseFloat(mov.quantidade?.toString() || '0'),
     motivo: mov.motivo || '',
     usuario: mov.usuario || ''
@@ -138,7 +140,7 @@ export default function Estoque() {
     const map: Record<InventoryItem['status'], string> = {
       Normal: 'bg-[hsl(var(--progress-light))] border-[hsl(var(--progress))]',
       Baixo: 'bg-[hsl(var(--report-light))] border-[hsl(var(--report))]',
-      Crítico: 'bg-[hsl(var(--problem-light))] border-[hsl(var(--problem))]',
+      Critico: 'bg-[hsl(var(--problem-light))] border-[hsl(var(--problem))]',
     };
     return <span className={`text-xs px-2 py-0.5 rounded-md border ${map[status]}`}>{status}</span>;
   };
@@ -148,7 +150,7 @@ export default function Estoque() {
     else { setSortBy(key); setSortDir('desc'); }
   };
 
-  const handleAddMaterial = async (data: any) => {
+  const handleAddMaterial = async (data: MaterialInsert) => {
     try {
       await createMaterial.mutateAsync(data);
       toast.success("Material adicionado com sucesso");
@@ -159,7 +161,7 @@ export default function Estoque() {
     }
   };
 
-  const handleEditMaterial = async (data: any) => {
+  const handleEditMaterial = async (data: MaterialInsert) => {
     if (!selectedMaterial) return;
     
     try {
@@ -201,7 +203,7 @@ export default function Estoque() {
     <div className="space-y-4">
       <PageHeader
         title="Controle de Estoque"
-        subtitle={`Materiais em estoque e movimentações ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`}
+        subtitle={`Materiais em estoque e movimentacoes ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`}
         action={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsAddDialogOpen(true)}>
@@ -219,7 +221,7 @@ export default function Estoque() {
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <Input placeholder="Buscar material" value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
           </div>
-          <Select value={obra} onValueChange={(v) => setObra(v as any)}>
+          <Select value={obra} onValueChange={setObra}>
             <SelectTrigger><SelectValue placeholder="Obra" /></SelectTrigger>
             <SelectContent>
               {obrasOptions.map((o) => (
@@ -227,7 +229,7 @@ export default function Estoque() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={cat} onValueChange={(v) => setCat(v as any)}>
+          <Select value={cat} onValueChange={setCat}>
             <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               {categoriaOptions.map((c) => (
@@ -261,10 +263,10 @@ export default function Estoque() {
                   <TableHead>Unidade</TableHead>
                   <TableHead>Obra</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
-                    <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por Ultima movimentacao">
+                    <div className="inline-flex items-center gap-1">Ultima Movimentacao <ArrowUpDown className="h-4 w-4" /></div>
                   </TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-right">Aoes</TableHead>
                 </TableRow>
               </TableHeader>
             </Table>
@@ -288,7 +290,7 @@ export default function Estoque() {
                         <div>{fmtDate(new Date(item.ultimaMov))}</div>
                         <div className="text-right">
                           <Button variant="outline" size="sm" onClick={() => setDialogId(item.id)}>
-                            <History className="h-4 w-4 mr-1" /> Histórico
+                            <History className="h-4 w-4 mr-1" /> Historico
                           </Button>
                         </div>
                       </div>
@@ -310,10 +312,10 @@ export default function Estoque() {
                   <TableHead>Unidade</TableHead>
                   <TableHead>Obra</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por última movimentação">
-                    <div className="inline-flex items-center gap-1">Última Movimentação <ArrowUpDown className="h-4 w-4" /></div>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => sortToggle('ultimaMov')} tabIndex={0} aria-label="Ordenar por Ultima movimentacao">
+                    <div className="inline-flex items-center gap-1">Ultima Movimentacao <ArrowUpDown className="h-4 w-4" /></div>
                   </TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-right">Aoes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -369,8 +371,8 @@ export default function Estoque() {
       <Dialog open={!!dialogId} onOpenChange={(o) => !o && setDialogId(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Histórico de Movimentações</DialogTitle>
-            <DialogDescription>Movimentações do material selecionado</DialogDescription>
+            <DialogTitle>Historico de Movimentacoes</DialogTitle>
+            <DialogDescription>Movimentacoes do material selecionado</DialogDescription>
           </DialogHeader>
 
           {!selected ? (
@@ -379,7 +381,7 @@ export default function Estoque() {
             <div className="space-y-3">
               <div className="rounded-md border p-3 text-sm">
                 <div className="font-medium">{selected.material}</div>
-                <div className="text-muted-foreground">Estoque atual: {selected.quantidade} {selected.unidade} · <StatusBadge status={selected.status} /></div>
+                <div className="text-muted-foreground">Estoque atual: {selected.quantidade} {selected.unidade} A <StatusBadge status={selected.status} /></div>
               </div>
 
               <div className="overflow-x-auto rounded-md border">
@@ -390,14 +392,14 @@ export default function Estoque() {
                       <TableHead>Tipo</TableHead>
                       <TableHead>Quantidade</TableHead>
                       <TableHead>Motivo</TableHead>
-                      <TableHead>Usuário</TableHead>
+                      <TableHead>UsuArio</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingMov ? (
-                      <TableRow><TableCell colSpan={5} className="text-sm text-muted-foreground">Carregando…</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-sm text-muted-foreground">Carregando</TableCell></TableRow>
                     ) : movements.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-sm text-muted-foreground">Sem movimentações.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-sm text-muted-foreground">Sem movimentacoes.</TableCell></TableRow>
                     ) : (
                       movements.map((m) => (
                         <TableRow key={m.id}>
@@ -459,9 +461,9 @@ export default function Estoque() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogTitle>Confirmar ExclusAo</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir o material "{selectedMaterial?.nome}"? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o material "{selectedMaterial?.nome}"? Esta ao nAo pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">
@@ -477,3 +479,14 @@ export default function Estoque() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
