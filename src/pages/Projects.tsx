@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,9 @@ import { useObras, useCreateObra, useUpdateObra, useDeleteObra } from "@/integra
 import { ObraInsertDTO, ObraUpdateDTO, ObraTransformed, transformObra } from "@/types/dto";
 import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { toast } from "sonner";
-import { useDebounce } from "@/hooks/use-debounce";
+import { useDebounce, useDebouncedValue } from "@/hooks/use-debounce";
 import { fmtDateTime } from "@/lib/date";
+import { geocodeAddress, validateAddress, formatAddress } from "@/lib/geocoding";
 
 interface ObraFormData {
   nome: string;
@@ -61,6 +62,7 @@ function ObraDialog({
 }) {
   const createObra = useCreateObra();
   const updateObra = useUpdateObra();
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [formData, setFormData] = useState<ObraFormData>({
     nome: obra?.nome || '',
     endereco: obra?.endereco || '',
@@ -72,6 +74,41 @@ function ObraDialog({
     longitude: obra?.longitude || undefined,
   });
 
+  // Geocodificar automaticamente quando o endereço mudar (com debounce)
+  const debouncedAddress = useDebouncedValue(formData.endereco, 2000);
+  
+  const handleAddressGeocoding = async (address: string) => {
+    if (!address || address.trim().length < 10) return;
+    
+    const validation = validateAddress(address);
+    if (!validation.isValid) return;
+
+    setIsGeocoding(true);
+    try {
+      const result = await geocodeAddress(address);
+      if (result) {
+        setFormData(prev => ({
+          ...prev,
+          latitude: result.latitude,
+          longitude: result.longitude
+        }));
+        toast.success(`Endereço localizado: ${result.display_name.split(',')[0]}`);
+      }
+    } catch (error) {
+      console.log('Geocodificação automática falhou:', error);
+      // Não mostrar erro ao usuário - geocodificação é opcional
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  // Executar geocodificação quando endereço mudar
+  useEffect(() => {
+    if (debouncedAddress && mode !== 'view') {
+      handleAddressGeocoding(debouncedAddress);
+    }
+  }, [debouncedAddress, mode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -80,30 +117,57 @@ function ObraDialog({
       return;
     }
 
+    if (!formData.endereco.trim()) {
+      toast.error('Endereço é obrigatório');
+      return;
+    }
+
+    // Validar endereço
+    const addressValidation = validateAddress(formData.endereco);
+    if (!addressValidation.isValid) {
+      toast.error(addressValidation.message);
+      return;
+    }
+
     try {
+      // Se não temos coordenadas, tentar geocodificar uma última vez
+      let finalLatitude = formData.latitude;
+      let finalLongitude = formData.longitude;
+
+      if (!finalLatitude || !finalLongitude) {
+        setIsGeocoding(true);
+        try {
+          const result = await geocodeAddress(formData.endereco);
+          if (result) {
+            finalLatitude = result.latitude;
+            finalLongitude = result.longitude;
+          }
+        } catch (geocodeError) {
+          console.log('Geocodificação final falhou:', geocodeError);
+          // Continuar sem coordenadas - elas são opcionais
+        } finally {
+          setIsGeocoding(false);
+        }
+      }
+
+      const obraData = {
+        nome: formData.nome,
+        endereco: formatAddress(formData.endereco),
+        responsavel: formData.responsavel || null,
+        status: formData.status || null,
+        data_inicio: formData.data_inicio || null,
+        previsao_conclusao: formData.previsao_conclusao || null,
+        latitude: finalLatitude || null,
+        longitude: finalLongitude || null,
+      };
+
       if (mode === 'create') {
-        await createObra.mutateAsync({
-          nome: formData.nome,
-          endereco: formData.endereco || null,
-          responsavel: formData.responsavel || null,
-          status: formData.status || null,
-          data_inicio: formData.data_inicio || null,
-          previsao_conclusao: formData.previsao_conclusao || null,
-          latitude: formData.latitude || null,
-          longitude: formData.longitude || null,
-        });
+        await createObra.mutateAsync(obraData);
         toast.success('Obra criada com sucesso!');
       } else if (mode === 'edit' && obra) {
         await updateObra.mutateAsync({
           id: obra.id,
-          nome: formData.nome,
-          endereco: formData.endereco || null,
-          responsavel: formData.responsavel || null,
-          status: formData.status || null,
-          data_inicio: formData.data_inicio || null,
-          previsao_conclusao: formData.previsao_conclusao || null,
-          latitude: formData.latitude || null,
-          longitude: formData.longitude || null,
+          ...obraData,
         });
         toast.success('Obra atualizada com sucesso!');
       }
@@ -115,6 +179,7 @@ function ObraDialog({
   };
 
   const isReadOnly = mode === 'view';
+  const isLoading = createObra.isPending || updateObra.isPending || isGeocoding;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -142,15 +207,30 @@ function ObraDialog({
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="endereco">Endereço</Label>
-              <Textarea
-                id="endereco"
-                value={formData.endereco}
-                onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                placeholder="Endereço completo da obra"
-                disabled={isReadOnly}
-                rows={2}
-              />
+              <Label htmlFor="endereco">Endereço Completo *</Label>
+              <div className="relative">
+                <Textarea
+                  id="endereco"
+                  value={formData.endereco}
+                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                  placeholder="Ex: Rua das Flores, 123, Centro, São Paulo, SP"
+                  disabled={isReadOnly}
+                  rows={3}
+                  className={isGeocoding ? "border-blue-300" : ""}
+                  required
+                />
+                {isGeocoding && (
+                  <div className="absolute right-3 top-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                📍 Insira o endereço completo para localização automática no mapa
+                {formData.latitude && formData.longitude && (
+                  <span className="text-green-600 ml-2">✓ Localizado</span>
+                )}
+              </p>
             </div>
 
             <div>
@@ -205,32 +285,6 @@ function ObraDialog({
                 disabled={isReadOnly}
               />
             </div>
-
-            <div>
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="any"
-                value={formData.latitude || ''}
-                onChange={(e) => setFormData({ ...formData, latitude: Number(e.target.value) || undefined })}
-                placeholder="-23.5505"
-                disabled={isReadOnly}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="any"
-                value={formData.longitude || ''}
-                onChange={(e) => setFormData({ ...formData, longitude: Number(e.target.value) || undefined })}
-                placeholder="-46.6333"
-                disabled={isReadOnly}
-              />
-            </div>
           </div>
 
           {!isReadOnly && (
@@ -238,9 +292,15 @@ function ObraDialog({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createObra.isPending || updateObra.isPending}>
-                {createObra.isPending || updateObra.isPending ? 'Salvando...' : 
-                 mode === 'create' ? 'Criar Obra' : 'Salvar Alterações'}
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    {isGeocoding ? 'Localizando...' : 'Salvando...'}
+                  </div>
+                ) : (
+                  mode === 'create' ? 'Criar Obra' : 'Salvar Alterações'
+                )}
               </Button>
             </div>
           )}
