@@ -16,13 +16,12 @@ import { useUnreadNotificacoes } from "@/integrations/supabase/hooks/useNotifica
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Obras em Andamento", url: "/obras-em-andamento", icon: Construction },
-  { title: "Gestao de Obras", url: "/projects", icon: FolderKanban },
-  { title: "Central de Notificacoes", url: "/notifications", icon: Bell },
-  { title: "Feed de Registros", url: "/feed", icon: ListOrdered },
+  { title: "Gestão de Projetos", url: "/projects", icon: FolderKanban },
   { title: "Kanban de Tarefas", url: "/kanban", icon: KanbanSquare },
-  { title: "Controle de Estoque", url: "/inventory", icon: Boxes },
+  { title: "Controle de Estoque", url: "/estoque", icon: Boxes },
   { title: "Mapa das Obras", url: "/map", icon: MapIcon },
+  { title: "Notificações", url: "/notifications", icon: Bell },
+  { title: "Feed de Registros", url: "/feed", icon: ListOrdered },
   { title: "Log do Sistema", url: "/system-log", icon: Activity },
 ];
 

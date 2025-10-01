@@ -22,6 +22,8 @@ import SystemLog from "@/pages/SystemLog";
 import PerformanceOptimization from "@/pages/PerformanceOptimization";
 import ReportsPage from "@/pages/ReportsPage";
 import EnhancedDashboard from "@/pages/EnhancedDashboard";
+import EstoqueSimples from "@/pages/EstoqueSimples";
+import DashboardHome from "@/pages/DashboardHome";
 
 export const router = createBrowserRouter([
   {
@@ -36,7 +38,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Index /> },
+      { index: true, element: <DashboardHome /> },
       { path: "obras-em-andamento", element: <ObrasEmAndamento /> },
       { path: "projects", element: <Projects /> },
       { path: "notifications", element: <Notifications /> },
@@ -59,6 +61,7 @@ export const router = createBrowserRouter([
       { path: "performance", element: <PerformanceOptimization /> },
       { path: "reports-advanced", element: <ReportsPage /> },
       { path: "dashboard-enhanced", element: <EnhancedDashboard /> },
+      { path: "estoque", element: <EstoqueSimples /> },
       { path: "*", element: <NotFound /> },
     ],
   },
