@@ -5,7 +5,7 @@ import { WorkItem } from '@/types/map';
 import { MapControls } from './MapControls';
 import { PopupCard } from './PopupCard';
 import { MapFallback } from './MapFallback';
-import { useMapData } from '@/features/map/hooks/useMapData';
+import { useObras } from '@/integrations/supabase/hooks/useObras';
 import '@/styles/maplibre.css';
 
 interface MapComponentProps {
@@ -33,29 +33,72 @@ export function MapComponent({ className = '' }: MapComponentProps) {
   } = useMapStore();
 
   // Get real data from Supabase
-  const { works: supabaseWorks, isLoading: isLoadingData } = useMapData({ 
-    scopeFilter: 'todas' 
-  });
+  const { data: supabaseWorks = [], isLoading: isLoadingData } = useObras();
 
   // Transform Supabase data to WorkItem format
-  const works: WorkItem[] = supabaseWorks.map(obra => ({
-    id: obra.id,
-    name: obra.nome,
-    description: `Obra ${obra.status || 'em andamento'}`,
-    status: getWorkStatus(obra.progresso),
-    progress: obra.progresso,
-    coordinates: obra.coords,
-    address: obra.endereco || 'Endereço não informado',
-    startedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
+  const works: WorkItem[] = supabaseWorks
+    .filter(obra => obra.latitude && obra.longitude) // Só obras com coordenadas
+    .map(obra => ({
+      id: obra.id,
+      name: obra.nome,
+      description: obra.endereco || 'Endereço não informado',
+      status: getWorkStatus(obra.status),
+      progress: getProgressFromStatus(obra.status),
+      coordinates: [obra.longitude!, obra.latitude!] as [number, number],
+      address: obra.endereco || 'Endereço não informado',
+      startedAt: obra.data_inicio || new Date().toISOString(),
+      updatedAt: obra.updated_at || new Date().toISOString(),
+    }));
 
-  // Helper function to convert progress to status
-  function getWorkStatus(progress: number): WorkItem['status'] {
-    if (progress <= 30) return 'Initial';
-    if (progress >= 80) return 'Advanced';
-    return 'InProgress';
+  // Helper function to convert status to WorkItem status
+  function getWorkStatus(status: string | null): WorkItem['status'] {
+    switch (status) {
+      case 'concluida': return 'Advanced';
+      case 'em_andamento': return 'InProgress';
+      case 'pausada': return 'Initial';
+      case 'cancelada': return 'Initial';
+      default: return 'Initial';
+    }
   }
+
+  // Helper function to get progress percentage from status
+  function getProgressFromStatus(status: string | null): number {
+    switch (status) {
+      case 'concluida': return 100;
+      case 'em_andamento': return 60;
+      case 'pausada': return 30;
+      case 'cancelada': return 0;
+      default: return 20;
+    }
+  }
+
+  // Add 3D buildings layer
+  const addBuildingsLayer = useCallback(() => {
+    if (!map.current) return;
+
+    try {
+      // Using OpenMapTiles without API key requirement
+      map.current.addSource('openmaptiles', {
+        type: 'vector',
+        url: 'https://free-0.tilehosting.com/data/v3.json'
+      });
+
+      map.current.addLayer({
+        id: 'buildings-3d',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        paint: {
+          'fill-extrusion-color': '#aaa',
+          'fill-extrusion-height': ['case', ['has', 'height'], ['get', 'height'], 10],
+          'fill-extrusion-base': ['case', ['has', 'min_height'], ['get', 'min_height'], 0],
+          'fill-extrusion-opacity': layers.opacity.buildings3D,
+        }
+      });
+    } catch (err) {
+      console.warn('Could not add buildings layer:', err);
+    }
+  }, [layers.opacity.buildings3D]);
 
   // Initialize map
   useEffect(() => {
@@ -107,34 +150,6 @@ export function MapComponent({ className = '' }: MapComponentProps) {
       }
     };
   }, [addBuildingsLayer, hydrateFromStorage, viewMode]);
-
-  // Add 3D buildings layer
-  const addBuildingsLayer = useCallback(() => {
-    if (!map.current) return;
-
-    try {
-      // Using OpenMapTiles without API key requirement
-      map.current.addSource('openmaptiles', {
-        type: 'vector',
-        url: 'https://free-0.tilehosting.com/data/v3.json'
-      });
-
-      map.current.addLayer({
-        id: 'buildings-3d',
-        source: 'openmaptiles',
-        'source-layer': 'building',
-        type: 'fill-extrusion',
-        paint: {
-          'fill-extrusion-color': '#aaa',
-          'fill-extrusion-height': ['case', ['has', 'height'], ['get', 'height'], 10],
-          'fill-extrusion-base': ['case', ['has', 'min_height'], ['get', 'min_height'], 0],
-          'fill-extrusion-opacity': layers.opacity.buildings3D,
-        }
-      });
-    } catch (err) {
-      console.warn('Could not add buildings layer:', err);
-    }
-  }, [layers.opacity.buildings3D]);
 
   // Toggle 2D/3D view
   useEffect(() => {
@@ -188,8 +203,18 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     setFilteredWorks(filtered);
   }, [works, filters.statuses, search]);
 
-  // Track work (highlight for 5s)
+  // Track work (center map and highlight)
   const trackWork = useCallback((work: WorkItem) => {
+    if (!map.current) return;
+
+    // Center map on the work location
+    map.current.flyTo({
+      center: work.coordinates,
+      zoom: 15,
+      duration: 2000
+    });
+
+    // Highlight marker
     const marker = markers.current.get(work.id);
     if (marker) {
       const el = marker.getElement();
@@ -201,9 +226,12 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     }
   }, []);
 
-  // View details (stub)
+  // View details (open Projects page with selected obra)
   const viewDetails = useCallback((work: WorkItem) => {
-    console.log('View details:', work);
+    // Podemos usar o router para navegar ou disparar um evento
+    // Por enquanto, vou console.log, mas pode ser melhorado
+    console.log('Navegando para detalhes da obra:', work.name);
+    window.location.href = `/projects?obra=${work.id}`;
   }, []);
 
   // Show popup
@@ -258,15 +286,39 @@ export function MapComponent({ className = '' }: MapComponentProps) {
 
     const el = document.createElement('div');
     el.className = `custom-marker status-${work.status} marker-enter`;
+    
+    // Criar ícone baseado no status
+    const getStatusIcon = (status: WorkItem['status']) => {
+      switch (status) {
+        case 'Advanced': return '✓';
+        case 'InProgress': return '⚡';
+        case 'Initial': return '◯';
+        default: return '?';
+      }
+    };
+
+    const getStatusText = (status: WorkItem['status']) => {
+      switch (status) {
+        case 'Advanced': return 'Concluída';
+        case 'InProgress': return 'Em Andamento';
+        case 'Initial': return 'Planejamento';
+        default: return 'Status desconhecido';
+      }
+    };
+    
     el.innerHTML = `
-      ${work.progress}%
-      <div class="marker-hover-label">${work.name}</div>
+      <div class="marker-icon">${getStatusIcon(work.status)}</div>
+      <div class="marker-hover-label">
+        <div class="font-semibold">${work.name}</div>
+        <div class="text-xs text-muted-foreground">${getStatusText(work.status)}</div>
+        <div class="text-xs">${work.address}</div>
+      </div>
     `;
     
     // Accessibility
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-label', `Obra ${work.name}, ${work.progress}% concluída, status: ${work.status}`);
+    el.setAttribute('aria-label', `Obra ${work.name}, ${getStatusText(work.status)}`);
     el.setAttribute('aria-describedby', `marker-${work.id}`);
 
     // Click and keyboard handlers

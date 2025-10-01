@@ -14,15 +14,15 @@ interface PopupCardProps {
 
 export function PopupCard({ work, onClose, onTrack, onViewDetails }: PopupCardProps) {
   const statusColors = {
-    Initial: 'bg-muted-foreground',
-    InProgress: 'bg-primary',
+    Initial: 'bg-yellow-500',
+    InProgress: 'bg-blue-500',
     Advanced: 'bg-green-500',
   };
 
   const statusLabels = {
-    Initial: 'Inicial',
+    Initial: 'Planejamento',
     InProgress: 'Em Andamento',
-    Advanced: 'Avançado',
+    Advanced: 'Concluída',
   };
 
   return (
@@ -34,7 +34,7 @@ export function PopupCard({ work, onClose, onTrack, onViewDetails }: PopupCardPr
             <h3 className="font-semibold text-base leading-tight mb-1 truncate">
               {work.name}
             </h3>
-            <p className="text-sm text-muted-foreground mb-2 truncate">
+            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
               {work.description}
             </p>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -51,70 +51,24 @@ export function PopupCard({ work, onClose, onTrack, onViewDetails }: PopupCardPr
         </div>
       </div>
 
-      {/* Progress Section */}
+      {/* Status e Data */}
       <div className="px-4 pb-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Progresso da obra</span>
+            <span className="text-sm font-medium">Status da obra</span>
           </div>
-          <span className="text-lg font-bold text-primary">{work.progress}%</span>
+          <span className="text-sm font-semibold text-primary">{statusLabels[work.status]}</span>
         </div>
         
-        <Progress 
-          value={work.progress} 
-          className="h-3 mb-1"
-        />
-        
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>0%</span>
-          <span>100%</span>
-        </div>
+        {/* Data de início */}
+        {work.startedAt && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="w-4 h-4" />
+            <span>Iniciada em: {new Date(work.startedAt).toLocaleDateString('pt-BR')}</span>
+          </div>
+        )}
       </div>
-
-      {/* Metadata */}
-      {(work.startedAt || work.updatedAt) && (
-        <div className="px-4 pb-4 space-y-2 text-xs">
-          {work.startedAt && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              <span>Iniciada: {new Date(work.startedAt).toLocaleDateString('pt-BR')}</span>
-            </div>
-          )}
-          {work.updatedAt && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              <span>Atualizada: {new Date(work.updatedAt).toLocaleDateString('pt-BR')}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Additional Info */}
-      {work.meta && (
-        <div className="px-4 pb-4">
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            {work.meta.contractor && (
-              <div>
-                <span className="text-muted-foreground">Construtora:</span>
-                <div className="font-medium truncate">{work.meta.contractor as string}</div>
-              </div>
-            )}
-            {work.meta.budget && (
-              <div>
-                <span className="text-muted-foreground">Orçamento:</span>
-                <div className="font-medium">
-                  {new Intl.NumberFormat('pt-BR', { 
-                    style: 'currency', 
-                    currency: 'BRL',
-                    minimumFractionDigits: 0
-                  }).format(work.meta.budget as number)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Actions */}
       <div className="p-4 pt-0 border-t border-border bg-muted/30">
@@ -142,7 +96,7 @@ export function PopupCard({ work, onClose, onTrack, onViewDetails }: PopupCardPr
             }}
           >
             <Target className="w-4 h-4 mr-1" />
-            Rastrear
+            Centralizar
           </Button>
         </div>
       </div>
@@ -152,8 +106,7 @@ export function PopupCard({ work, onClose, onTrack, onViewDetails }: PopupCardPr
         <div id={`marker-${work.id}`}>
           Obra {work.name} localizada em {work.address}. 
           Status atual: {statusLabels[work.status]}. 
-          Progresso: {work.progress} por cento concluído.
-          {work.meta?.contractor && ` Construtora: ${work.meta.contractor}.`}
+          {work.startedAt && `Iniciada em ${new Date(work.startedAt).toLocaleDateString('pt-BR')}.`}
         </div>
       </div>
     </div>
