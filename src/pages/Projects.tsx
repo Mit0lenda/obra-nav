@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,19 +26,18 @@ import { useObras, useCreateObra, useUpdateObra, useDeleteObra } from "@/integra
 import { ObraInsertDTO, ObraUpdateDTO, ObraTransformed, transformObra } from "@/types/dto";
 import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { toast } from "sonner";
-import { useDebounce, useDebouncedValue } from "@/hooks/use-debounce";
 import { fmtDateTime } from "@/lib/date";
-import { geocodeAddress, validateAddress, formatAddress } from "@/lib/geocoding";
+import { SimpleAddressForm } from "@/components/shared/SimpleAddressForm";
+import { type AddressComponents, formatFullAddress } from "@/lib/address-components";
 
 interface ObraFormData {
   nome: string;
-  endereco: string;
+  // Endereço estruturado
+  endereco: AddressComponents;
+  // Outros campos
   responsavel: string;
   status: string;
   data_inicio: string;
-  previsao_conclusao: string;
-  latitude?: number;
-  longitude?: number;
 }
 
 const statusOptions = [
@@ -62,52 +61,29 @@ function ObraDialog({
 }) {
   const createObra = useCreateObra();
   const updateObra = useUpdateObra();
-  const [isGeocoding, setIsGeocoding] = useState(false);
   const [formData, setFormData] = useState<ObraFormData>({
     nome: obra?.nome || '',
-    endereco: obra?.endereco || '',
+    // Endereço estruturado - inicializar vazio ou parse do endereço existente
+    endereco: {
+      logradouro: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      uf: '',
+      cep: '',
+      endereco_completo: obra?.endereco || '',
+      latitude: obra?.latitude || undefined,
+      longitude: obra?.longitude || undefined,
+      fonte: 'manual',
+      confiabilidade: 'baixa'
+    },
+    // Outros campos
     responsavel: obra?.responsavel || '',
     status: obra?.status || 'planejamento',
     data_inicio: obra?.data_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
-    previsao_conclusao: obra?.previsao_conclusao?.split('T')[0] || '',
-    latitude: obra?.latitude || undefined,
-    longitude: obra?.longitude || undefined,
   });
-
-  // Geocodificar automaticamente quando o endereço mudar (com debounce)
-  const debouncedAddress = useDebouncedValue(formData.endereco, 2000);
-  
-  const handleAddressGeocoding = async (address: string) => {
-    if (!address || address.trim().length < 10) return;
-    
-    const validation = validateAddress(address);
-    if (!validation.isValid) return;
-
-    setIsGeocoding(true);
-    try {
-      const result = await geocodeAddress(address);
-      if (result) {
-        setFormData(prev => ({
-          ...prev,
-          latitude: result.latitude,
-          longitude: result.longitude
-        }));
-        toast.success(`Endereço localizado: ${result.display_name.split(',')[0]}`);
-      }
-    } catch (error) {
-      console.log('Geocodificação automática falhou:', error);
-      // Não mostrar erro ao usuário - geocodificação é opcional
-    } finally {
-      setIsGeocoding(false);
-    }
-  };
-
-  // Executar geocodificação quando endereço mudar
-  useEffect(() => {
-    if (debouncedAddress && mode !== 'view') {
-      handleAddressGeocoding(debouncedAddress);
-    }
-  }, [debouncedAddress, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,48 +93,20 @@ function ObraDialog({
       return;
     }
 
-    if (!formData.endereco.trim()) {
+    if (!formData.endereco.endereco_completo?.trim()) {
       toast.error('Endereço é obrigatório');
       return;
     }
 
-    // Validar endereço
-    const addressValidation = validateAddress(formData.endereco);
-    if (!addressValidation.isValid) {
-      toast.error(addressValidation.message);
-      return;
-    }
-
     try {
-      // Se não temos coordenadas, tentar geocodificar uma última vez
-      let finalLatitude = formData.latitude;
-      let finalLongitude = formData.longitude;
-
-      if (!finalLatitude || !finalLongitude) {
-        setIsGeocoding(true);
-        try {
-          const result = await geocodeAddress(formData.endereco);
-          if (result) {
-            finalLatitude = result.latitude;
-            finalLongitude = result.longitude;
-          }
-        } catch (geocodeError) {
-          console.log('Geocodificação final falhou:', geocodeError);
-          // Continuar sem coordenadas - elas são opcionais
-        } finally {
-          setIsGeocoding(false);
-        }
-      }
-
       const obraData = {
         nome: formData.nome,
-        endereco: formatAddress(formData.endereco),
+        endereco: formData.endereco.endereco_completo,
         responsavel: formData.responsavel || null,
         status: formData.status || null,
         data_inicio: formData.data_inicio || null,
-        previsao_conclusao: formData.previsao_conclusao || null,
-        latitude: finalLatitude || null,
-        longitude: finalLongitude || null,
+        latitude: formData.endereco.latitude || null,
+        longitude: formData.endereco.longitude || null,
       };
 
       if (mode === 'create') {
@@ -179,7 +127,7 @@ function ObraDialog({
   };
 
   const isReadOnly = mode === 'view';
-  const isLoading = createObra.isPending || updateObra.isPending || isGeocoding;
+  const isLoading = createObra.isPending || updateObra.isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -207,30 +155,19 @@ function ObraDialog({
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="endereco">Endereço Completo *</Label>
-              <div className="relative">
-                <Textarea
-                  id="endereco"
-                  value={formData.endereco}
-                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  placeholder="Ex: Rua das Flores, 123, Centro, São Paulo, SP"
-                  disabled={isReadOnly}
-                  rows={3}
-                  className={isGeocoding ? "border-blue-300" : ""}
-                  required
-                />
-                {isGeocoding && (
-                  <div className="absolute right-3 top-3">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                📍 Insira o endereço completo para localização automática no mapa
-                {formData.latitude && formData.longitude && (
-                  <span className="text-green-600 ml-2">✓ Localizado</span>
-                )}
-              </p>
+              <SimpleAddressForm
+                value={formData.endereco}
+                onChange={(endereco) => {
+                  setFormData(prev => ({ ...prev, endereco }));
+                  
+                  // Feedback visual quando endereço é selecionado
+                  if (endereco.latitude && endereco.longitude) {
+                    toast.success(`📍 Endereço localizado no mapa!`);
+                  }
+                }}
+                disabled={isReadOnly}
+                className="w-full"
+              />
             </div>
 
             <div>
@@ -274,17 +211,6 @@ function ObraDialog({
                 disabled={isReadOnly}
               />
             </div>
-
-            <div>
-              <Label htmlFor="previsao_conclusao">Previsão de Conclusão</Label>
-              <Input
-                id="previsao_conclusao"
-                type="date"
-                value={formData.previsao_conclusao}
-                onChange={(e) => setFormData({ ...formData, previsao_conclusao: e.target.value })}
-                disabled={isReadOnly}
-              />
-            </div>
           </div>
 
           {!isReadOnly && (
@@ -296,7 +222,7 @@ function ObraDialog({
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    {isGeocoding ? 'Localizando...' : 'Salvando...'}
+                    Salvando...
                   </div>
                 ) : (
                   mode === 'create' ? 'Criar Obra' : 'Salvar Alterações'
@@ -345,13 +271,9 @@ export default function Projects() {
     const total = transformedObras.length;
     const emAndamento = transformedObras.filter(o => o.status === 'em_andamento').length;
     const concluidas = transformedObras.filter(o => o.status === 'concluida').length;
-    const atrasadas = transformedObras.filter(o => 
-      o.previsao_conclusao && 
-      new Date(o.previsao_conclusao) < new Date() && 
-      o.status !== 'concluida'
-    ).length;
+    const pausadas = transformedObras.filter(o => o.status === 'pausada').length;
 
-    return { total, emAndamento, concluidas, atrasadas };
+    return { total, emAndamento, concluidas, pausadas };
   }, [transformedObras]);
 
   const getStatusBadge = (status?: string | null) => {
@@ -432,10 +354,10 @@ export default function Projects() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Atrasadas</CardTitle>
+            <CardTitle className="text-sm font-medium">Pausadas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.atrasadas}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pausadas}</div>
           </CardContent>
         </Card>
       </div>
@@ -499,10 +421,10 @@ export default function Projects() {
                         <span>{obra.responsavel}</span>
                       </div>
                     )}
-                    {obra.previsao_conclusao && (
+                    {obra.data_inicio && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span>Previsão: {new Date(obra.previsao_conclusao).toLocaleDateString('pt-BR')}</span>
+                        <span>Início: {new Date(obra.data_inicio).toLocaleDateString('pt-BR')}</span>
                       </div>
                     )}
                     
@@ -531,7 +453,7 @@ export default function Projects() {
                         </Button>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {obra.progresso}% concluído
+                        {obra.data_inicio ? fmtDateTime(obra.data_inicio) : 'Sem data'}
                       </div>
                     </div>
                   </CardContent>
@@ -550,8 +472,7 @@ export default function Projects() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Responsável</TableHead>
-                    <TableHead>Previsão</TableHead>
-                    <TableHead>Progresso</TableHead>
+                    <TableHead>Início</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -571,12 +492,11 @@ export default function Projects() {
                       <TableCell>{getStatusBadge(obra.status)}</TableCell>
                       <TableCell>{obra.responsavel || '-'}</TableCell>
                       <TableCell>
-                        {obra.previsao_conclusao ? 
-                          new Date(obra.previsao_conclusao).toLocaleDateString('pt-BR') : 
+                        {obra.data_inicio ? 
+                          new Date(obra.data_inicio).toLocaleDateString('pt-BR') : 
                           '-'
                         }
                       </TableCell>
-                      <TableCell>{obra.progresso}%</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button 

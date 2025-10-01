@@ -1,6 +1,6 @@
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
-// Supabase Table DTOs
+// Base Table DTOs
 export type TaskDTO = Tables<'tasks'>;
 export type TaskInsertDTO = TablesInsert<'tasks'>;
 export type TaskUpdateDTO = TablesUpdate<'tasks'>;
@@ -81,17 +81,15 @@ export interface AtualizacaoProgressoTransformed {
 export interface ObraTransformed {
   id: string;
   nome: string;
-  endereco: string | null;
-  status: string | null;
-  responsavel: string | null;
-  data_inicio: string | null;
-  previsao_conclusao: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  progresso: number;
+  endereco?: string | null;
+  status?: string | null;
+  responsavel?: string | null;
+  data_inicio?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   coords: [number, number];
   created_at: string;
-  updated_at: string | null;
+  updated_at?: string | null;
 }
 
 // Feed Item Types
@@ -154,27 +152,9 @@ export const transformObra: DTOTransformer<ObraDTO, ObraTransformed> = (obra) =>
   status: obra.status,
   responsavel: obra.responsavel,
   data_inicio: obra.data_inicio,
-  previsao_conclusao: obra.previsao_conclusao,
   latitude: obra.latitude,
   longitude: obra.longitude,
-  progresso: calculateProgress(obra), // Function to calculate progress based on tasks/updates
   coords: [obra.longitude || 0, obra.latitude || 0] as [number, number],
   created_at: obra.created_at || new Date().toISOString(),
   updated_at: obra.updated_at,
 });
-
-// Helper function to calculate progress (this could be enhanced with actual business logic)
-function calculateProgress(obra: ObraDTO): number {
-  // Placeholder logic - in real scenario, this would be based on completed tasks, milestones, etc.
-  const startDate = obra.data_inicio ? new Date(obra.data_inicio) : new Date();
-  const endDate = obra.previsao_conclusao ? new Date(obra.previsao_conclusao) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const now = new Date();
-  
-  if (now >= endDate) return 100;
-  if (now <= startDate) return 0;
-  
-  const totalDuration = endDate.getTime() - startDate.getTime();
-  const elapsed = now.getTime() - startDate.getTime();
-  
-  return Math.round((elapsed / totalDuration) * 100);
-}
