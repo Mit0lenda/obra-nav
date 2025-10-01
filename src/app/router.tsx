@@ -5,6 +5,7 @@ import Auth from "@/pages/Auth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 import ObrasEmAndamento from "@/pages/ObrasEmAndamento";
+import Projects from "@/pages/Projects";
 import Notifications from "@/pages/Notifications";
 import Feed from "@/pages/Feed";
 import Kanban from "@/pages/Kanban";
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Index /> },
       { path: "obras-em-andamento", element: <ObrasEmAndamento /> },
+      { path: "projects", element: <Projects /> },
       { path: "notifications", element: <Notifications /> },
       { path: "feed", element: <Feed /> },
       { path: "kanban", element: <Kanban /> },

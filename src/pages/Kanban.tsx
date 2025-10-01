@@ -144,7 +144,103 @@ function NewTaskDialog({ onSubmit, taskType }: { onSubmit: (data: NewTaskData) =
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... resto do formulário ... */}
+          <div className="space-y-2">
+            <Label htmlFor="descricao">Descrição *</Label>
+            <Input
+              id="descricao"
+              value={formData.descricao}
+              onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+              placeholder="Descreva a tarefa"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="priority">Prioridade</Label>
+            <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v })}>
+              <SelectTrigger id="priority">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="crítico">Crítico</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="média">Média</SelectItem>
+                <SelectItem value="baixa">Baixa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="obra">Obra *</Label>
+            <Input
+              id="obra"
+              value={formData.obra}
+              onChange={(e) => setFormData({ ...formData, obra: e.target.value })}
+              placeholder="Nome da obra"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="solicitado">Solicitante</Label>
+            <Input
+              id="solicitado"
+              value={formData.solicitado}
+              onChange={(e) => setFormData({ ...formData, solicitado: e.target.value })}
+              placeholder="Nome do solicitante"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="respo">Responsável</Label>
+            <Input
+              id="respo"
+              value={formData.respo}
+              onChange={(e) => setFormData({ ...formData, respo: e.target.value })}
+              placeholder="Nome do responsável"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="prazo">Prazo</Label>
+            <Input
+              id="prazo"
+              type="date"
+              value={formData.prazo}
+              onChange={(e) => setFormData({ ...formData, prazo: e.target.value })}
+            />
+          </div>
+
+          {taskType === 'servico' ? (
+            <div className="space-y-2">
+              <Label htmlFor="area">Área</Label>
+              <Input
+                id="area"
+                value={formData.area || ''}
+                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                placeholder="Ex: Hidráulica, Elétrica"
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="qtd">Quantidade</Label>
+              <Input
+                id="qtd"
+                value={formData.qtd || ''}
+                onChange={(e) => setFormData({ ...formData, qtd: e.target.value })}
+                placeholder="Ex: 50 metros"
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit">
+              Criar Tarefa
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

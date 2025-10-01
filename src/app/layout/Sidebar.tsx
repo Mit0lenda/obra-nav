@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Construction, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity } from "lucide-react";
+import { LayoutDashboard, Construction, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity, FolderKanban } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ import { useUnreadCount } from "@/data/mockNotifications";
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Obras em Andamento", url: "/obras-em-andamento", icon: Construction },
+  { title: "Gestão de Obras", url: "/projects", icon: FolderKanban },
   { title: "Central de Notificações", url: "/notifications", icon: Bell },
   { title: "Feed de Registros", url: "/feed", icon: ListOrdered },
   { title: "Kanban de Tarefas", url: "/kanban", icon: KanbanSquare },

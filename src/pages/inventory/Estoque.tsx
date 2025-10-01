@@ -7,14 +7,16 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { FixedSizeList as List } from "react-window";
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
-import { useMateriais } from "@/integrations/supabase/hooks/useMateriais";
+import { useMateriais, useCreateMaterial, useUpdateMaterial, useDeleteMaterial } from "@/integrations/supabase/hooks/useMateriais";
 import { useMovimentacoes } from "@/integrations/supabase/hooks/useMovimentacoes";
 import { useObras } from "@/integrations/supabase/hooks/useObras";
 import { fmtDate, fmtDateTime } from "@/lib/date";
-import { ArrowUpDown, History, Search } from "lucide-react";
+import { ArrowUpDown, History, Search, Edit2, Trash2, Plus } from "lucide-react";
 import { useObraScope } from "@/app/obraScope";
 import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { useDebounce } from "@/hooks/use-debounce";
+import { MaterialForm } from "@/components/inventory/MaterialForm";
+import { toast } from "sonner";
 
 type InventoryItem = {
   id: string;
@@ -32,6 +34,9 @@ export default function Estoque() {
   const { data: materiais = [], isLoading } = useMateriais();
   const { data: obrasData = [] } = useObras();
   const { obra: obraScope } = useObraScope();
+  const createMaterial = useCreateMaterial();
+  const updateMaterial = useUpdateMaterial();
+  const deleteMaterial = useDeleteMaterial();
 
   // Convert Supabase data to component format
   const items: InventoryItem[] = materiais.map(material => ({
@@ -57,6 +62,10 @@ export default function Estoque() {
   const [sortBy, setSortBy] = useState<SortKey>('quantidade');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [dialogId, setDialogId] = useState<string | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<typeof materiais[0] | null>(null);
 
   // Debounce search
   const debouncedSetSearch = useDebounce((value: string) => {
@@ -139,6 +148,55 @@ export default function Estoque() {
     else { setSortBy(key); setSortDir('desc'); }
   };
 
+  const handleAddMaterial = async (data: any) => {
+    try {
+      await createMaterial.mutateAsync(data);
+      toast.success("Material adicionado com sucesso");
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      toast.error("Erro ao adicionar material");
+      console.error(error);
+    }
+  };
+
+  const handleEditMaterial = async (data: any) => {
+    if (!selectedMaterial) return;
+    
+    try {
+      await updateMaterial.mutateAsync({ id: selectedMaterial.id, ...data });
+      toast.success("Material atualizado com sucesso");
+      setIsEditDialogOpen(false);
+      setSelectedMaterial(null);
+    } catch (error) {
+      toast.error("Erro ao atualizar material");
+      console.error(error);
+    }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (!selectedMaterial) return;
+
+    try {
+      await deleteMaterial.mutateAsync(selectedMaterial.id);
+      toast.success("Material removido com sucesso");
+      setIsDeleteDialogOpen(false);
+      setSelectedMaterial(null);
+    } catch (error) {
+      toast.error("Erro ao remover material");
+      console.error(error);
+    }
+  };
+
+  const openEditDialog = (material: typeof materiais[0]) => {
+    setSelectedMaterial(material);
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (material: typeof materiais[0]) => {
+    setSelectedMaterial(material);
+    setIsDeleteDialogOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -146,6 +204,9 @@ export default function Estoque() {
         subtitle={`Materiais em estoque e movimentações ${obraScope !== "todas" ? `(Escopo: ${obraScope})` : ""}`}
         action={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Novo Material
+            </Button>
             <Button variant="secondary" onClick={() => navigate('/inventory/entrada-xml')}>Nova Entrada</Button>
             <Button onClick={() => navigate('/inventory/baixa-manual')}>Nova Baixa</Button>
           </div>
@@ -278,9 +339,23 @@ export default function Estoque() {
                       <TableCell><StatusBadge status={i.status} /></TableCell>
                       <TableCell>{fmtDate(new Date(i.ultimaMov))}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => setDialogId(i.id)}>
-                          <History className="h-4 w-4 mr-1" /> Histórico
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const material = materiais.find(m => m.id === i.id);
+                            if (material) openEditDialog(material);
+                          }}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setDialogId(i.id)}>
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const material = materiais.find(m => m.id === i.id);
+                            if (material) openDeleteDialog(material);
+                          }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -341,6 +416,62 @@ export default function Estoque() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Novo Material</DialogTitle>
+            <DialogDescription>Preencha os dados do novo material</DialogDescription>
+          </DialogHeader>
+          <MaterialForm 
+            onSubmit={handleAddMaterial}
+            onCancel={() => setIsAddDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Material</DialogTitle>
+            <DialogDescription>Atualize os dados do material</DialogDescription>
+          </DialogHeader>
+          <MaterialForm 
+            initialData={selectedMaterial ? {
+              nome: selectedMaterial.nome,
+              descricao: selectedMaterial.descricao || "",
+              unidade: selectedMaterial.unidade || "un",
+              quantidade: selectedMaterial.quantidade?.toString() || "0",
+              obra_id: selectedMaterial.obra_id || ""
+            } : undefined}
+            onSubmit={handleEditMaterial}
+            onCancel={() => {
+              setIsEditDialogOpen(false);
+              setSelectedMaterial(null);
+            }}
+            isEdit
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o material "{selectedMaterial?.nome}"? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteMaterial}>
+              Excluir
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
