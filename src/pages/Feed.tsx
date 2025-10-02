@@ -19,6 +19,7 @@ type TaskRecord = {
   descricao?: string;
   tipo?: string;
   prioridade?: string;
+  status?: string;
   data_criacao?: string;
   created_at?: string;
   updated_at?: string;

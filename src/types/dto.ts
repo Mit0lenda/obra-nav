@@ -85,6 +85,8 @@ export interface ObraTransformed {
   status?: string | null;
   responsavel?: string | null;
   data_inicio?: string | null;
+  previsao_conclusao?: string | null;
+  progresso?: number | null;
   latitude?: number | null;
   longitude?: number | null;
   coords: [number, number];
@@ -152,6 +154,8 @@ export const transformObra: DTOTransformer<ObraDTO, ObraTransformed> = (obra) =>
   status: obra.status,
   responsavel: obra.responsavel,
   data_inicio: obra.data_inicio,
+  previsao_conclusao: obra.previsao_conclusao,
+  progresso: null, // Campo calculado, não vem do banco
   latitude: obra.latitude,
   longitude: obra.longitude,
   coords: [obra.longitude || 0, obra.latitude || 0] as [number, number],
