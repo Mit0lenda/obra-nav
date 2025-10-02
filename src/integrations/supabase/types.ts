@@ -212,6 +212,7 @@ export type Database = {
           longitude: number | null
           nome: string
           previsao_conclusao: string | null
+          progresso: number | null
           responsavel: string | null
           status: string | null
           updated_at: string | null
@@ -225,6 +226,7 @@ export type Database = {
           longitude?: number | null
           nome: string
           previsao_conclusao?: string | null
+          progresso?: number | null
           responsavel?: string | null
           status?: string | null
           updated_at?: string | null
@@ -238,6 +240,7 @@ export type Database = {
           longitude?: number | null
           nome?: string
           previsao_conclusao?: string | null
+          progresso?: number | null
           responsavel?: string | null
           status?: string | null
           updated_at?: string | null
@@ -403,6 +406,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calcular_progresso_obra: {
+        Args: { obra_uuid: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

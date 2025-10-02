@@ -94,6 +94,12 @@ export interface ObraTransformed {
   updated_at?: string | null;
 }
 
+// Helper para formatar progresso
+export const formatProgresso = (progresso?: number | null): string => {
+  if (progresso === null || progresso === undefined) return '0%';
+  return `${Math.round(progresso)}%`;
+};
+
 // Feed Item Types
 export type FeedItemType = 'task' | 'relatorio' | 'atualizacao_progresso';
 
@@ -155,7 +161,7 @@ export const transformObra: DTOTransformer<ObraDTO, ObraTransformed> = (obra) =>
   responsavel: obra.responsavel,
   data_inicio: obra.data_inicio,
   previsao_conclusao: obra.previsao_conclusao,
-  progresso: null, // Campo calculado, não vem do banco
+  progresso: obra.progresso ? Number(obra.progresso) : 0,
   latitude: obra.latitude,
   longitude: obra.longitude,
   coords: [obra.longitude || 0, obra.latitude || 0] as [number, number],

@@ -38,6 +38,7 @@ interface ObraFormData {
   responsavel: string;
   status: string;
   data_inicio: string;
+  previsao_conclusao: string;
 }
 
 const statusOptions = [
@@ -83,6 +84,7 @@ function ObraDialog({
     responsavel: obra?.responsavel || '',
     status: obra?.status || 'planejamento',
     data_inicio: obra?.data_inicio?.split('T')[0] || new Date().toISOString().split('T')[0],
+    previsao_conclusao: obra?.previsao_conclusao?.split('T')[0] || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,6 +107,7 @@ function ObraDialog({
         responsavel: formData.responsavel || null,
         status: formData.status || null,
         data_inicio: formData.data_inicio || null,
+        previsao_conclusao: formData.previsao_conclusao || null,
         latitude: formData.endereco.latitude || null,
         longitude: formData.endereco.longitude || null,
       };
@@ -208,6 +211,17 @@ function ObraDialog({
                 type="date"
                 value={formData.data_inicio}
                 onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="previsao_conclusao">Previsão de Conclusão</Label>
+              <Input
+                id="previsao_conclusao"
+                type="date"
+                value={formData.previsao_conclusao}
+                onChange={(e) => setFormData({ ...formData, previsao_conclusao: e.target.value })}
                 disabled={isReadOnly}
               />
             </div>

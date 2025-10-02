@@ -18,7 +18,12 @@ export type Notificacao = {
 
 // Query hooks
 export function useNotificacoes() {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const createNotificacao = useCreateNotificacao();
+  const updateNotificacao = useUpdateNotificacao();
+  const deleteNotificacao = useDeleteNotificacao();
+
+  const query = useQuery({
     queryKey: ["notificacoes"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -33,6 +38,13 @@ export function useNotificacoes() {
       return data as Notificacao[];
     },
   });
+
+  return {
+    ...query,
+    createNotificacao,
+    updateNotificacao,
+    deleteNotificacao,
+  };
 }
 
 export function useUnreadNotificacoes() {
