@@ -75,10 +75,33 @@ export function useCreateTask() {
         .single();
       
       if (error) throw error;
+
+      // Criar auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("auditoria").insert({
+          usuario: user.email || 'Sistema',
+          acao: 'Criação de Tarefa',
+          detalhes: `Tarefa "${data.titulo}" criada`
+        });
+
+        // Criar notificação
+        await supabase.from("notificacoes").insert({
+          titulo: 'Nova Tarefa Criada',
+          descricao: `Tarefa "${data.titulo}" foi criada`,
+          categoria: 'tarefa',
+          prioridade: data.prioridade || 'media',
+          obra_id: data.obra_id,
+          remetente: user.email || 'Sistema'
+        });
+      }
+      
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["auditoria"] });
+      queryClient.invalidateQueries({ queryKey: ["notificacoes"] });
     },
   });
 }
@@ -96,11 +119,36 @@ export function useUpdateTask() {
         .single();
       
       if (error) throw error;
+
+      // Criar auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("auditoria").insert({
+          usuario: user.email || 'Sistema',
+          acao: 'Atualização de Tarefa',
+          detalhes: `Tarefa "${data.titulo}" atualizada`
+        });
+
+        // Criar notificação se status mudou para concluída
+        if (updates.status === 'CONCLUÍDO' || updates.status === 'concluida') {
+          await supabase.from("notificacoes").insert({
+            titulo: 'Tarefa Concluída',
+            descricao: `Tarefa "${data.titulo}" foi concluída`,
+            categoria: 'tarefa',
+            prioridade: 'baixa',
+            obra_id: data.obra_id,
+            remetente: user.email || 'Sistema'
+          });
+        }
+      }
+      
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["auditoria"] });
+      queryClient.invalidateQueries({ queryKey: ["notificacoes"] });
     },
   });
 }

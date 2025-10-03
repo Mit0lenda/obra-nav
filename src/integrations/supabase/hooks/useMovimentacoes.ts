@@ -52,16 +52,16 @@ export function useCreateMovimentacao() {
       
       if (error) throw error;
 
-      // Atualizar quantidade do material
-      const { data: material, error: materialError } = await supabase
+      // Buscar informações do material
+      const { data: materialInfo, error: materialInfoError } = await supabase
         .from("materiais")
-        .select("quantidade")
+        .select("quantidade, nome")
         .eq("id", movimentacao.material_id)
         .single();
 
-      if (materialError) throw materialError;
+      if (materialInfoError) throw materialInfoError;
 
-      const novaQuantidade = (material.quantidade || 0) + movimentacao.quantidade;
+      const novaQuantidade = (materialInfo.quantidade || 0) + movimentacao.quantidade;
       
       const { error: updateError } = await supabase
         .from("materiais")
@@ -69,12 +69,43 @@ export function useCreateMovimentacao() {
         .eq("id", movimentacao.material_id);
 
       if (updateError) throw updateError;
+
+      // Criar auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("auditoria").insert({
+          usuario: user.email || 'Sistema',
+          acao: `Movimentação de Estoque - ${movimentacao.tipo}`,
+          detalhes: `Material "${materialInfo.nome}" - Quantidade: ${movimentacao.quantidade} - Motivo: ${movimentacao.motivo || 'Não informado'}`
+        });
+
+        // Criar notificação se estoque baixo
+        if (novaQuantidade < 10 && novaQuantidade > 0) {
+          await supabase.from("notificacoes").insert({
+            titulo: 'Estoque Baixo',
+            descricao: `O material "${materialInfo.nome}" está com estoque baixo (${novaQuantidade} unidades)`,
+            categoria: 'estoque',
+            prioridade: 'alta',
+            remetente: 'Sistema'
+          });
+        } else if (novaQuantidade === 0) {
+          await supabase.from("notificacoes").insert({
+            titulo: 'Estoque Zerado',
+            descricao: `O material "${materialInfo.nome}" está sem estoque`,
+            categoria: 'estoque',
+            prioridade: 'critica',
+            remetente: 'Sistema'
+          });
+        }
+      }
       
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["movimentacoes"] });
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
+      queryClient.invalidateQueries({ queryKey: ["auditoria"] });
+      queryClient.invalidateQueries({ queryKey: ["notificacoes"] });
     },
   });
 }

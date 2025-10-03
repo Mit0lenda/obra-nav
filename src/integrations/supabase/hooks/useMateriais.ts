@@ -75,10 +75,22 @@ export function useCreateMaterial() {
         .single();
       
       if (error) throw error;
+
+      // Criar auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("auditoria").insert({
+          usuario: user.email || 'Sistema',
+          acao: 'Cadastro de Material',
+          detalhes: `Material "${data.nome}" cadastrado no estoque`
+        });
+      }
+      
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
+      queryClient.invalidateQueries({ queryKey: ["auditoria"] });
     },
   });
 }
