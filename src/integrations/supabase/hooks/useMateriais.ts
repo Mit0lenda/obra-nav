@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { useEffect } from "react";
 
 export type Material = Tables<"materiais">;
 export type MaterialInsert = TablesInsert<"materiais">;
@@ -8,7 +9,9 @@ export type MaterialUpdate = TablesUpdate<"materiais">;
 
 // Query hooks
 export function useMateriais() {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ["materiais"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -23,6 +26,31 @@ export function useMateriais() {
       return data;
     },
   });
+
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('materiais-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'materiais'
+        },
+        () => {
+          console.log('Materiais table changed, invalidating cache');
+          queryClient.invalidateQueries({ queryKey: ['materiais'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
 }
 
 export function useMaterial(id: string) {

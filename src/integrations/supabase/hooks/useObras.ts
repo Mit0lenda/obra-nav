@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 export type Obra = Tables<"obras">;
 export type ObraInsert = TablesInsert<"obras">;
@@ -10,7 +11,9 @@ export type ObraUpdate = TablesUpdate<"obras">;
 
 // Query hooks
 export function useObras() {
-  return useQuery({
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
     queryKey: ["obras"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -22,6 +25,31 @@ export function useObras() {
       return data;
     },
   });
+
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('obras-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'obras'
+        },
+        () => {
+          console.log('Obras table changed, invalidating cache');
+          queryClient.invalidateQueries({ queryKey: ['obras'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
 }
 
 export function useObra(id: string) {

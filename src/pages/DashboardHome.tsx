@@ -13,16 +13,23 @@ import {
   TrendingUp,
   Clock,
   AlertTriangle,
-  Users
+  Users,
+  Download,
+  BarChart3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useObras } from '@/integrations/supabase/hooks/useObras';
 import { useTasks } from '@/integrations/supabase/hooks/useTasks';
+import { useMateriais } from '@/integrations/supabase/hooks/useMateriais';
 import { transformObra, transformTask } from '@/types/dto';
+import { exportObrasToCSV, exportTasksToCSV } from '@/lib/data-export';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardHome() {
   const { data: obras = [], isLoading: loadingObras } = useObras();
   const { data: tasks = [], isLoading: loadingTasks } = useTasks();
+  const { data: materiais = [], isLoading: loadingMateriais } = useMateriais();
+  const { toast } = useToast();
 
   // Transformar dados
   const transformedObras = obras.map(transformObra);
@@ -41,14 +48,32 @@ export default function DashboardHome() {
     ).length,
     progressoMedio: transformedObras.length > 0 
       ? transformedObras.reduce((acc, obra) => acc + (obra.progresso || 0), 0) / transformedObras.length
-      : 0
+      : 0,
+    materiaisBaixos: materiais.filter(m => (m.quantidade || 0) < 10).length,
+    materiaisTotal: materiais.length,
+  };
+
+  const handleExportObras = () => {
+    exportObrasToCSV(obras);
+    toast({
+      title: "Exportação concluída",
+      description: "Dados de obras exportados com sucesso",
+    });
+  };
+
+  const handleExportTasks = () => {
+    exportTasksToCSV(tasks);
+    toast({
+      title: "Exportação concluída",
+      description: "Dados de tarefas exportados com sucesso",
+    });
   };
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('pt-BR').format(num);
   };
 
-  if (loadingObras || loadingTasks) {
+  if (loadingObras || loadingTasks || loadingMateriais) {
     return (
       <div className="container mx-auto py-6">
         <div className="flex items-center justify-center h-64">
@@ -64,17 +89,27 @@ export default function DashboardHome() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Painel de Controle</h1>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Bem-vindo ao ObraNav - Sistema de Gestão de Obras
           </p>
         </div>
-        <div className="text-sm text-gray-500">
-          {new Date().toLocaleDateString('pt-BR', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportObras}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Obras
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportTasks}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Tarefas
+          </Button>
+          <div className="text-sm text-muted-foreground ml-4">
+            {new Date().toLocaleDateString('pt-BR', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </div>
         </div>
       </div>
 
@@ -127,7 +162,7 @@ export default function DashboardHome() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pendentes</p>
+                <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
                 <p className="text-3xl font-bold">{formatNumber(stats.tarefasPendentes)}</p>
                 <p className="text-sm text-orange-600">tarefas em aberto</p>
               </div>
@@ -136,6 +171,65 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Analytics Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Analytics em Tempo Real
+              </CardTitle>
+              <CardDescription>
+                Métricas detalhadas do sistema
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+              Atualização automática
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Taxa de Conclusão</span>
+                <span className="text-sm font-medium">
+                  {stats.totalTarefas > 0 
+                    ? ((stats.tarefasConcluidas / stats.totalTarefas) * 100).toFixed(1)
+                    : 0}%
+                </span>
+              </div>
+              <Progress 
+                value={stats.totalTarefas > 0 ? (stats.tarefasConcluidas / stats.totalTarefas) * 100 : 0} 
+                className="h-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Progresso Médio</span>
+                <span className="text-sm font-medium">{stats.progressoMedio.toFixed(1)}%</span>
+              </div>
+              <Progress value={stats.progressoMedio} className="h-2" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Estoque Baixo</span>
+                <span className="text-sm font-medium text-orange-600">
+                  {stats.materiaisBaixos} de {stats.materiaisTotal}
+                </span>
+              </div>
+              <Progress 
+                value={stats.materiaisTotal > 0 ? (stats.materiaisBaixos / stats.materiaisTotal) * 100 : 0}
+                className="h-2"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Projetos Recentes */}
