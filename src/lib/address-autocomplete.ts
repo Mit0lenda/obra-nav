@@ -3,6 +3,40 @@
  * Combina Google Places API com Nominatim para sugestões em tempo real
  */
 
+declare global {
+  interface Window {
+    GOOGLE_PLACES_API_KEY?: string;
+  }
+}
+
+// Tipos mínimos para respostas externas
+interface NominatimResult {
+  place_id?: number | string;
+  display_name?: string;
+  lat: string;
+  lon: string;
+  address?: {
+    road?: string;
+    house_number?: string;
+    neighbourhood?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+  };
+}
+
+interface GooglePrediction {
+  place_id: string;
+  description: string;
+  types: string[];
+  structured_formatting?: {
+    main_text?: string;
+    secondary_text?: string;
+  };
+}
+
 export interface AddressSuggestion {
   id: string;
   display_name: string;
@@ -57,9 +91,9 @@ async function searchWithNominatim(
       throw new Error(`Nominatim API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data: NominatimResult[] = await response.json();
     
-    return data.map((item: any, index: number): AddressSuggestion => {
+    return data.map((item: NominatimResult, index: number): AddressSuggestion => {
       const address = item.address || {};
       const displayName = item.display_name || '';
       
@@ -109,8 +143,7 @@ async function searchWithGooglePlaces(
   options: AutocompleteOptions = {}
 ): Promise<AddressSuggestion[]> {
   // Verificar se Google Places está disponível (precisa de API key)
-  const apiKey = process.env.VITE_GOOGLE_PLACES_API_KEY || 
-                  (window as any).GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.VITE_GOOGLE_PLACES_API_KEY || window.GOOGLE_PLACES_API_KEY;
   
   if (!apiKey) {
     console.log('Google Places API key não encontrada, usando Nominatim');
@@ -138,7 +171,7 @@ async function searchWithGooglePlaces(
       throw new Error(`Google Places API status: ${data.status}`);
     }
 
-    return data.predictions.slice(0, maxResults).map((prediction: any, index: number): AddressSuggestion => {
+    return (data.predictions as GooglePrediction[]).slice(0, maxResults).map((prediction: GooglePrediction, index: number): AddressSuggestion => {
       const mainText = prediction.structured_formatting?.main_text || '';
       const secondaryText = prediction.structured_formatting?.secondary_text || '';
       

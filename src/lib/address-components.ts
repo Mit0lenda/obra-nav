@@ -199,13 +199,36 @@ export function parseAddressText(addressText: string): Partial<AddressComponents
 /**
  * Integrar dados do autocomplete com componentes estruturados
  */
+type NominatimAddress = {
+  road?: string;
+  house_number?: string;
+  neighbourhood?: string;
+  suburb?: string;
+  district?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  state?: string;
+  postcode?: string;
+};
+
+type NominatimSuggestionRaw = {
+  address?: NominatimAddress;
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+};
+
+import type { AddressSuggestion } from './address-autocomplete';
+
 export async function enrichAddressWithComponents(
-  suggestion: any,
+  suggestion: AddressSuggestion | NominatimSuggestionRaw,
   userInput?: string
 ): Promise<AddressComponents> {
   
   // Se temos coordenadas do Nominatim, extrair componentes
-  if (suggestion.address) {
+  if ('address' in suggestion && suggestion.address) {
     const addr = suggestion.address;
     
     const components: AddressComponents = {
@@ -218,8 +241,8 @@ export async function enrichAddressWithComponents(
       uf: getUfFromEstado(addr.state) || '',
       cep: addr.postcode ? formatCep(addr.postcode) : '',
       endereco_completo: '',
-      latitude: parseFloat(suggestion.lat),
-      longitude: parseFloat(suggestion.lon),
+      latitude: suggestion.lat ? parseFloat(suggestion.lat) : undefined,
+      longitude: suggestion.lon ? parseFloat(suggestion.lon) : undefined,
       fonte: 'nominatim' as const,
       confiabilidade: 'media' as const
     };
@@ -248,7 +271,11 @@ export async function enrichAddressWithComponents(
   }
 
   // Fallback: parse manual do texto
-  const parsed = parseAddressText(suggestion.display_name || suggestion.full_address || '');
+  const parsed = parseAddressText(
+    ('display_name' in suggestion ? suggestion.display_name : undefined) ||
+    (typeof (suggestion as AddressSuggestion).full_address === 'string' ? (suggestion as AddressSuggestion).full_address : '') ||
+    ''
+  );
   
   const fallbackComponents = {
     logradouro: parsed.logradouro || '',
@@ -260,8 +287,8 @@ export async function enrichAddressWithComponents(
     uf: parsed.uf || '',
     cep: parsed.cep || '',
     endereco_completo: '',
-    latitude: suggestion.latitude,
-    longitude: suggestion.longitude,
+    latitude: (suggestion as AddressSuggestion).latitude,
+    longitude: (suggestion as AddressSuggestion).longitude,
     fonte: 'manual' as const,
     confiabilidade: 'baixa' as const
   };
@@ -423,7 +450,7 @@ export function formatFullAddress(components: AddressComponents): string {
  */
 export async function searchAddressWithComponents(
   query: string
-): Promise<{ suggestion: any; components: AddressComponents }[]> {
+): Promise<{ suggestion: import('./address-autocomplete').AddressSuggestion; components: AddressComponents }[]> {
   
   // Importar função de busca existente
   const { searchAddressSuggestions } = await import('./address-autocomplete');

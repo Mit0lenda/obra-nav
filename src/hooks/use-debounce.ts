@@ -48,7 +48,7 @@ export function useDebouncedValue<T>(value: T, delay: number): T {
 }
 
 // Hook para controle de loading durante debounce
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   delay: number,
   deps?: React.DependencyList

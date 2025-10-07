@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Construction, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity, FolderKanban } from "lucide-react";
+import { LayoutDashboard, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity, FolderKanban } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -40,7 +40,7 @@ export default function AppSidebar() {
           {!collapsed && (
             <div>
               <div className="font-semibold leading-none">Nexium</div>
-              <div className="text-xs text-muted-foreground">Gestao de Obras</div>
+              <div className="text-xs text-muted-foreground">Gestão de Obras</div>
             </div>
           )}
         </div>
@@ -48,7 +48,7 @@ export default function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
+          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -59,7 +59,7 @@ export default function AppSidebar() {
                       {!collapsed && (
                         <span className="inline-flex items-center gap-2">
                           {item.title}
-                          {item.title === "Central de Notificacoes" && unread > 0 && (
+                          {item.url === "/notifications" && unread > 0 && (
                             <span className="ml-2 rounded-full bg-primary/10 text-primary text-[10px] px-1.5 py-0.5">
                               {unread}
                             </span>
@@ -75,7 +75,7 @@ export default function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Resumo Rapido</SidebarGroupLabel>
+          <SidebarGroupLabel>Resumo Rápido</SidebarGroupLabel>
           <SidebarGroupContent>
             <QuickSummary mini={collapsed} />
           </SidebarGroupContent>
@@ -87,7 +87,7 @@ export default function AppSidebar() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 rounded-full bg-accent text-accent-foreground grid place-items-center text-[10px] font-bold">NU</div>
-              <span>Usuario</span>
+              <span>Usuário</span>
             </div>
             <span className="text-success">Online</span>
           </div>
@@ -98,3 +98,4 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
+
