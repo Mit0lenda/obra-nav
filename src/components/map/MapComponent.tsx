@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import useMapStore from '@/store/useMapStore';
 import { WorkItem } from '@/types/map';
@@ -37,7 +37,7 @@ export function MapComponent({ className = '' }: MapComponentProps) {
 
   // Transform Supabase data to WorkItem format
   const works: WorkItem[] = supabaseWorks
-    .filter(obra => obra.latitude && obra.longitude) // Só obras com coordenadas
+    .filter(obra => obra.latitude && obra.longitude) // SÃ³ obras com coordenadas
     .map(obra => ({
       id: obra.id,
       name: obra.nome,
@@ -299,7 +299,7 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     const el = document.createElement('div');
     el.className = `custom-marker status-${work.status} marker-enter`;
     
-    // Criar �cone baseado no status
+    // Criar ícone baseado no status
     const getStatusIcon = (status: WorkItem['status']) => {
       switch (status) {
         case 'Advanced': return '??';
