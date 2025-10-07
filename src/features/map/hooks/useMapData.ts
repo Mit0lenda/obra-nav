@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useObras } from '@/integrations/supabase/hooks/useObras';
 
 export interface MapWork { 
@@ -59,7 +59,7 @@ function getProgressFromStatus(status: string): number {
       return 15;
     case 'em andamento':
       return 60;
-    case 'concluída':
+    case 'conclu�da':
     case 'concluido':
       return 100;
     case 'paralisada':
@@ -68,3 +68,6 @@ function getProgressFromStatus(status: string): number {
       return 45; // Default progress for unknown status
   }
 }
+
+
+

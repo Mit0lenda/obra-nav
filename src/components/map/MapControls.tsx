@@ -246,8 +246,11 @@ export function MapControls({ works }: MapControlsProps) {
                     key={work.id}
                     className="p-3 border border-border rounded-lg hover:bg-muted cursor-pointer transition-colors"
                     onClick={() => {
-                      // TODO: Fly to work location
-                      console.log('Navigate to work:', work);
+                      // Seleciona a obra para o mapa focar e abrir detalhes
+                      useMapStore.getState().selectWork(work.id);
+                      if (window.innerWidth < 768) {
+                        useMapStore.getState().setPanelOpen(false);
+                      }
                     }}
                   >
                     <div className="flex items-start justify-between gap-2">

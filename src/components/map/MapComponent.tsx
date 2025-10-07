@@ -280,6 +280,18 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     });
   }, [selectWork, trackWork, viewDetails]);
 
+  // Fly and open popup when a work is selected from controls
+  useEffect(() => {
+    if (!map.current || !selectedWorkId) return;
+    const work = filteredWorks.find(w => w.id === selectedWorkId) ||
+                 works.find(w => w.id === selectedWorkId);
+    if (work) {
+      map.current.flyTo({ center: work.coordinates, zoom: 15, duration: 1200 });
+      // Small delay to ensure map is centered before popup
+      setTimeout(() => showPopup(work), 200);
+    }
+  }, [selectedWorkId, filteredWorks, works, showPopup]);
+
   // Add single marker
   const addMarker = useCallback((work: WorkItem) => {
     if (!map.current) return;
@@ -287,21 +299,21 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     const el = document.createElement('div');
     el.className = `custom-marker status-${work.status} marker-enter`;
     
-    // Criar ícone baseado no status
+    // Criar �cone baseado no status
     const getStatusIcon = (status: WorkItem['status']) => {
       switch (status) {
-        case 'Advanced': return '✓';
-        case 'InProgress': return '⚡';
-        case 'Initial': return '◯';
+        case 'Advanced': return '??';
+        case 'InProgress': return '??';
+        case 'Initial': return '??';
         default: return '?';
       }
     };
 
     const getStatusText = (status: WorkItem['status']) => {
       switch (status) {
-        case 'Advanced': return 'Concluída';
-        case 'InProgress': return 'Em Andamento';
-        case 'Initial': return 'Planejamento';
+        case 'Advanced': return '??';
+        case 'InProgress': return '??';
+        case 'Initial': return '??';
         default: return 'Status desconhecido';
       }
     };
@@ -443,3 +455,5 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     </div>
   );
 }
+
+

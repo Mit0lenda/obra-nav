@@ -60,7 +60,7 @@ export function MapFallback({ error, works, onRetry }: MapFallbackProps) {
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-destructive">Nao foi possivel carregar o mapa</h2>
+            <h2 className="font-semibold text-destructive">Não foi possível carregar o mapa</h2>
             <p className="text-sm text-destructive/80 truncate">
               {error.message || 'Erro desconhecido ao inicializar o mapa'}
             </p>
@@ -76,7 +76,7 @@ export function MapFallback({ error, works, onRetry }: MapFallbackProps) {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-xl font-bold mb-2">Lista de Obras</h1>
           <p className="text-muted-foreground text-sm">
-            Visualizacao alternativa enquanto o mapa nao estiver disponivel
+            Visualização alternativa enquanto o mapa não estiver disponível
           </p>
         </div>
       </div>
@@ -87,7 +87,7 @@ export function MapFallback({ error, works, onRetry }: MapFallbackProps) {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
-                placeholder="Buscar obras por nome ou endereco..."
+                placeholder="Buscar obras por nome ou endereço..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -103,7 +103,7 @@ export function MapFallback({ error, works, onRetry }: MapFallbackProps) {
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Initial">Inicial</SelectItem>
                   <SelectItem value="InProgress">Em Andamento</SelectItem>
-                  <SelectItem value="Advanced">Avancado</SelectItem>
+                  <SelectItem value="Advanced">Avançado</SelectItem>
                 </SelectContent>
               </Select>
 

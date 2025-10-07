@@ -77,10 +77,11 @@ export default function UserManagement() {
       });
       setSelectedUserId('');
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao adicionar role';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao adicionar role',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -103,10 +104,11 @@ export default function UserManagement() {
         description: 'Role removida com sucesso',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao remover role';
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao remover role',
+        description: message,
         variant: 'destructive',
       });
     },
@@ -178,7 +180,10 @@ export default function UserManagement() {
               </SelectContent>
             </Select>
 
-            <Select value={selectedRole} onValueChange={(v: any) => setSelectedRole(v)}>
+            <Select
+              value={selectedRole}
+              onValueChange={(v: 'admin' | 'moderator' | 'user') => setSelectedRole(v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma role" />
               </SelectTrigger>

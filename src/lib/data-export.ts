@@ -6,7 +6,7 @@ type Task = Database['public']['Tables']['tasks']['Row'];
 type Material = Database['public']['Tables']['materiais']['Row'];
 type Movimentacao = Database['public']['Tables']['movimentacoes']['Row'];
 
-export function exportToCSV<T extends Record<string, any>>(
+export function exportToCSV<T extends Record<string, unknown>>(
   data: T[],
   filename: string,
   columns?: (keyof T)[]
@@ -56,8 +56,8 @@ export function exportToCSV<T extends Record<string, any>>(
 }
 
 export function exportObrasToCSV(obras: Obra[]) {
-  const transformed = obras.map(transformObra) as Record<string, any>[];
-  const columns = [
+  const transformed = obras.map(transformObra);
+  const columns: (keyof ReturnType<typeof transformObra>)[] = [
     'nome',
     'status',
     'progresso',
@@ -71,8 +71,8 @@ export function exportObrasToCSV(obras: Obra[]) {
 }
 
 export function exportTasksToCSV(tasks: Task[]) {
-  const transformed = tasks.map(transformTask) as Record<string, any>[];
-  const columns = [
+  const transformed = tasks.map(transformTask);
+  const columns: (keyof ReturnType<typeof transformTask>)[] = [
     'titulo',
     'descricao',
     'status',
