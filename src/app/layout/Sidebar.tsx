@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity, FolderKanban } from "lucide-react";
+import { LayoutDashboard, Bell, ListOrdered, KanbanSquare, Boxes, Map as MapIcon, Activity, FolderKanban, Shield, BarChart3 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import QuickSummary from "./QuickSummary";
 import { useUnreadNotificacoes } from "@/integrations/supabase/hooks/useNotificacoes";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -25,12 +26,18 @@ const items = [
   { title: "Log do Sistema", url: "/system-log", icon: Activity },
 ];
 
+const adminItems = [
+  { title: "Gestão de Usuários", url: "/admin/users", icon: Shield },
+  { title: "Relatórios Avançados", url: "/admin/reports", icon: BarChart3 },
+];
+
 export default function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
   const { data: unread = 0 } = useUnreadNotificacoes();
+  const { isAdmin } = useUserRole();
 
   return (
     <Sidebar collapsible="icon" className={collapsed ? "w-14" : "w-64"}>
@@ -73,6 +80,26 @@ export default function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} end className={getNavCls}>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Resumo Rápido</SidebarGroupLabel>

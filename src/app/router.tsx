@@ -24,6 +24,8 @@ import ReportsPage from "@/pages/ReportsPage";
 import EnhancedDashboard from "@/pages/EnhancedDashboard";
 import EstoqueSimples from "@/pages/EstoqueSimples";
 import DashboardHome from "@/pages/DashboardHome";
+import UserManagement from "@/pages/admin/UserManagement";
+import AdvancedReports from "@/pages/admin/AdvancedReports";
 
 export const router = createBrowserRouter([
   {
@@ -62,6 +64,8 @@ export const router = createBrowserRouter([
       { path: "reports-advanced", element: <ReportsPage /> },
       { path: "dashboard-enhanced", element: <EnhancedDashboard /> },
       { path: "estoque", element: <EstoqueSimples /> },
+      { path: "admin/users", element: <UserManagement /> },
+      { path: "admin/reports", element: <AdvancedReports /> },
       { path: "*", element: <NotFound /> },
     ],
   },
