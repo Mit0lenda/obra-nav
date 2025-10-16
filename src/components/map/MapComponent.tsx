@@ -1,5 +1,8 @@
 ﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
+import type { StyleSpecification } from 'maplibre-gl';
+import { createRoot, type Root } from 'react-dom/client';
+import { useNavigate } from 'react-router-dom';
 import useMapStore from '@/store/useMapStore';
 import { WorkItem } from '@/types/map';
 import { MapControls } from './MapControls';
@@ -13,10 +16,12 @@ interface MapComponentProps {
 }
 
 export function MapComponent({ className = '' }: MapComponentProps) {
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<Map<string, maplibregl.Marker>>(new Map());
   const popup = useRef<maplibregl.Popup | null>(null);
+  const popupRootRef = useRef<Root | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -72,20 +77,51 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     }
   }
 
+  // Prepare free map style (env-driven with safe default)
+  const mapStyle: StyleSpecification | string = React.useMemo(() => (
+    import.meta.env.VITE_MAP_STYLE_URL || ({
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors',
+        },
+      },
+      layers: [
+        { id: 'osm', type: 'raster', source: 'osm' },
+      ],
+    } as StyleSpecification)
+  ), []);
+
   // Add 3D buildings layer
   const addBuildingsLayer = useCallback(() => {
     if (!map.current) return;
 
     try {
-      // Using OpenMapTiles without API key requirement
-      map.current.addSource('openmaptiles', {
-        type: 'vector',
-        url: 'https://free-0.tilehosting.com/data/v3.json'
-      });
+      // Reuse the style's existing vector source for buildings
+      const style = map.current.getStyle?.();
+      const existingBuildingLayer = style?.layers?.find((l) => {
+        const layer = l as Record<string, unknown>;
+        const sourceLayerVal = (layer["source-layer"] ?? layer["sourceLayer"]) as unknown;
+        const sourceVal = layer["source"] as unknown;
+        return sourceLayerVal === 'building' && typeof sourceVal === 'string';
+      }) as unknown;
+
+      const sourceId = (existingBuildingLayer as { source?: string } | undefined)?.source;
+      if (!sourceId) {
+        console.warn('No building source found in current style; skipping 3D buildings.');
+        return;
+      }
+
+      if (map.current.getLayer('buildings-3d')) {
+        return; // already added
+      }
 
       map.current.addLayer({
         id: 'buildings-3d',
-        source: 'openmaptiles',
+        source: sourceId,
         'source-layer': 'building',
         type: 'fill-extrusion',
         paint: {
@@ -107,7 +143,7 @@ export function MapComponent({ className = '' }: MapComponentProps) {
     try {
       map.current = new maplibregl.Map({
         container: mapContainer.current,
-        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+        style: mapStyle,
         center: [-51.9253, -14.2350], // Centro do Brasil
         zoom: 4,
         pitch: viewMode === '3D' ? 45 : 0,
@@ -115,7 +151,6 @@ export function MapComponent({ className = '' }: MapComponentProps) {
       });
 
       map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-      map.current.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
       map.current.on('load', () => {
         setIsLoading(false);
@@ -144,12 +179,16 @@ export function MapComponent({ className = '' }: MapComponentProps) {
         popup.current.remove();
         popup.current = null;
       }
+      if (popupRootRef.current) {
+        popupRootRef.current.unmount();
+        popupRootRef.current = null;
+      }
       if (map.current) {
         map.current.remove();
         map.current = null;
       }
     };
-  }, [addBuildingsLayer, hydrateFromStorage, viewMode]);
+  }, [addBuildingsLayer, hydrateFromStorage, viewMode, mapStyle]);
 
   // Toggle 2D/3D view
   useEffect(() => {
@@ -228,11 +267,8 @@ export function MapComponent({ className = '' }: MapComponentProps) {
 
   // View details (open Projects page with selected obra)
   const viewDetails = useCallback((work: WorkItem) => {
-    // Podemos usar o router para navegar ou disparar um evento
-    // Por enquanto, vou console.log, mas pode ser melhorado
-    console.log('Navegando para detalhes da obra:', work.name);
-    window.location.href = `/projects?obra=${work.id}`;
-  }, []);
+    navigate(`/projects?obra=${work.id}`);
+  }, [navigate]);
 
   // Show popup
   const showPopup = useCallback((work: WorkItem) => {
@@ -257,25 +293,32 @@ export function MapComponent({ className = '' }: MapComponentProps) {
       .addTo(map.current);
 
     // Render React component into popup
-    import('react-dom/client').then(({ createRoot }) => {
-      const root = createRoot(popupContainer);
-      root.render(
-        <PopupCard 
-          work={work} 
-          onClose={() => {
-            if (popup.current) {
-              popup.current.remove();
-              popup.current = null;
-            }
-            selectWork(null);
-          }}
-          onTrack={() => trackWork(work)}
-          onViewDetails={() => viewDetails(work)}
-        />
-      );
-    });
+    const root = createRoot(popupContainer);
+    popupRootRef.current = root;
+    root.render(
+      <PopupCard 
+        work={work} 
+        onClose={() => {
+          if (popup.current) {
+            popup.current.remove();
+            popup.current = null;
+          }
+          if (popupRootRef.current) {
+            popupRootRef.current.unmount();
+            popupRootRef.current = null;
+          }
+          selectWork(null);
+        }}
+        onTrack={() => trackWork(work)}
+        onViewDetails={() => viewDetails(work)}
+      />
+    );
 
     popup.current.on('close', () => {
+      if (popupRootRef.current) {
+        popupRootRef.current.unmount();
+        popupRootRef.current = null;
+      }
       selectWork(null);
     });
   }, [selectWork, trackWork, viewDetails]);

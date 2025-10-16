@@ -14,7 +14,7 @@ export default function MapPage() {
   }, [hydrateFromStorage]);
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border bg-background z-10">
         <PageHeader 

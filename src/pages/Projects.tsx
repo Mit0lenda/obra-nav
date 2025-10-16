@@ -28,6 +28,7 @@ import { LoadingPlaceholder, EmptyState } from "@/components/shared/States";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/date";
 import { SimpleAddressForm } from "@/components/shared/SimpleAddressForm";
+import { geocodeAddress, getApproximateCoordinates } from "@/lib/geocoding";
 import { type AddressComponents, formatFullAddress } from "@/lib/address-components";
 
 interface ObraFormData {
@@ -101,15 +102,40 @@ function ObraDialog({
     }
 
     try {
+      // Se não tiver coordenadas, tentar geocodificar automaticamente
+      let latitude = formData.endereco.latitude || null;
+      let longitude = formData.endereco.longitude || null;
+      if ((latitude == null || longitude == null) && formData.endereco.endereco_completo) {
+        try {
+          const geo = await geocodeAddress(formData.endereco.endereco_completo);
+          if (geo) {
+            latitude = geo.latitude;
+            longitude = geo.longitude;
+          } else {
+            const approx = getApproximateCoordinates(formData.endereco.endereco_completo);
+            if (approx) {
+              longitude = approx[0];
+              latitude = approx[1];
+            }
+          }
+        } catch {
+          const approx = getApproximateCoordinates(formData.endereco.endereco_completo);
+          if (approx) {
+            longitude = approx[0];
+            latitude = approx[1];
+          }
+        }
+      }
+
       const obraData = {
         nome: formData.nome,
         endereco: formData.endereco.endereco_completo,
         responsavel: formData.responsavel || null,
         status: formData.status || null,
         data_inicio: formData.data_inicio || null,
-        previsao_conclusao: formData.previsao_conclusao || null,
-        latitude: formData.endereco.latitude || null,
-        longitude: formData.endereco.longitude || null,
+        previsao_conclusao: mode === 'create' ? null : (formData.previsao_conclusao || null),
+        latitude,
+        longitude,
       };
 
       if (mode === 'create') {
@@ -133,7 +159,7 @@ function ObraDialog({
   const isLoading = createObra.isPending || updateObra.isPending;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
@@ -173,7 +199,7 @@ function ObraDialog({
               />
             </div>
 
-            <div>
+            <div hidden={mode === 'create'}>
               <Label htmlFor="responsavel">Responsável</Label>
               <Input
                 id="responsavel"

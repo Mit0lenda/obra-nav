@@ -10,6 +10,9 @@ export interface GeocodeResult {
   address: {
     road?: string;
     house_number?: string;
+    neighbourhood?: string;
+    suburb?: string;
+    district?: string;
     city?: string;
     state?: string;
     postcode?: string;

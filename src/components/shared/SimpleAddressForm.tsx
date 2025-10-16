@@ -7,7 +7,8 @@ import {
   searchByCep, 
   formatCep, 
   isValidCep, 
-  type AddressComponents 
+  type AddressComponents,
+  formatFullAddress,
 } from '@/lib/address-components';
 import { geocodeAddress } from '@/lib/geocoding';
 import { toast } from 'sonner';
@@ -28,6 +29,23 @@ export function SimpleAddressForm({
   const [isSearching, setIsSearching] = useState(false);
   const [addressInput, setAddressInput] = useState(value.endereco_completo || '');
 
+  // Atualiza campos estruturados e mantém endereco_completo em sincronia
+  const updateStructured = (partial: Partial<AddressComponents>, autoGeocode = false) => {
+    const next = { ...value, ...partial } as AddressComponents;
+    const full = formatFullAddress(next);
+    setAddressInput(full);
+    onChange({ ...next, endereco_completo: full });
+    if (autoGeocode && full.trim().length > 5) {
+      geocodeAddress(full)
+        .then((res) => {
+          if (res) {
+            onChange({ ...next, endereco_completo: full, latitude: res.latitude, longitude: res.longitude, fonte: 'nominatim', confiabilidade: 'media' });
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
   // Buscar endereço completo
   const handleAddressSearch = async () => {
     if (!addressInput.trim()) return;
@@ -40,7 +58,7 @@ export function SimpleAddressForm({
           logradouro: result.address.road || '',
           numero: result.address.house_number || '',
           complemento: '',
-          bairro: '',
+          bairro: result.address.neighbourhood || result.address.suburb || result.address.district || '',
           cidade: result.address.city || '',
           estado: result.address.state || '',
           uf: '',
@@ -75,6 +93,13 @@ export function SimpleAddressForm({
         const formattedAddress = `${result.logradouro}, ${result.bairro}, ${result.cidade} - ${result.uf}`;
         setAddressInput(formattedAddress);
         onChange(result);
+        try {
+          const geo = await geocodeAddress(formattedAddress);
+          if (geo) {
+            onChange({ ...result, endereco_completo: formattedAddress, latitude: geo.latitude, longitude: geo.longitude, fonte: 'nominatim', confiabilidade: 'media' });
+          }
+        } catch {}
+
         toast.success('📮 Endereço encontrado pelo CEP!');
       } else {
         toast.error('CEP não encontrado');
@@ -93,7 +118,7 @@ export function SimpleAddressForm({
         {/* Campo principal de endereço */}
         <div>
           <Label htmlFor="endereco" className="text-sm font-medium">
-            Endereço da Obra *
+            Endere�o da Obra *
           </Label>
           <div className="flex gap-2 mt-1">
             <Input
@@ -144,6 +169,37 @@ export function SimpleAddressForm({
           />
         </div>
 
+        
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label htmlFor="logradouro" className="text-sm">Rua</Label>
+            <Input
+              id="logradouro"
+              value={value.logradouro}
+              onChange={(e) => updateStructured({ logradouro: e.target.value }, false)}
+              disabled={disabled}
+            />
+          </div>
+          <div>
+            <Label htmlFor="numero" className="text-sm">Número</Label>
+            <Input
+              id="numero"
+              value={value.numero}
+              onChange={(e) => updateStructured({ numero: e.target.value }, false)}
+              disabled={disabled}
+            />
+          </div>
+          <div>
+            <Label htmlFor="bairro" className="text-sm">Bairro</Label>
+            <Input
+              id="bairro"
+              value={value.bairro}
+              onChange={(e) => updateStructured({ bairro: e.target.value }, true)}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+
         {/* Feedback visual */}
         {value.latitude && value.longitude && (
           <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md">
@@ -157,3 +213,4 @@ export function SimpleAddressForm({
     </div>
   );
 }
+
