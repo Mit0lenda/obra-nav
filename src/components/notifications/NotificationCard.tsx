@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Package, FileText, Check, Trash2, CheckSquare, XCircle } from "lucide-react";
 import { fmtDateTime } from "@/lib/date";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { addAuditEntry } from "@/components/shared/AuditLog";
+import { useAddAuditEntry } from "@/components/shared/AuditLog";
 
 export type NotificationPriorityLabel = "Alta" | "Media" | "Baixa";
 export type NotificationCategoryLabel =
@@ -59,14 +59,13 @@ interface NotificationCardProps {
 
 export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, onReject }: NotificationCardProps) {
   const Icon = categoryIcons[n.category];
+  const addAuditEntry = useAddAuditEntry();
 
   const handleMarkRead = () => {
     addAuditEntry({
       user: "Usuario Atual",
       action: "mark_read",
       details: `Marcou como lida: ${n.title}`,
-      entityType: "notification",
-      entityId: n.id,
     });
     onMarkRead();
   };
@@ -77,8 +76,6 @@ export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, o
         user: "Usuario Atual",
         action: "approve",
         details: `Aprovou notificacao: ${n.title} (${n.category})`,
-        entityType: "notification",
-        entityId: n.id,
       });
       onApprove();
     }
@@ -90,8 +87,6 @@ export default function NotificationCard({ n, onMarkRead, onRemove, onApprove, o
         user: "Usuario Atual",
         action: "reject",
         details: `Rejeitou notificacao: ${n.title}`,
-        entityType: "notification",
-        entityId: n.id,
       });
       onReject();
     }

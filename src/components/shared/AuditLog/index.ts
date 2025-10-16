@@ -1,3 +1,3 @@
 export { AuditLog } from "./AuditLog";
-export { addAuditEntry, loadAuditLog, auditLogStorage } from "./storage";
-export type { AuditEntry, AuditEntryInput, AuditAction, AuditEntityType } from "./types";
+export { useAuditoria, useAddAuditEntry } from "@/integrations/supabase/hooks/useAuditoria";
+export type { Auditoria } from "@/integrations/supabase/hooks/useAuditoria";

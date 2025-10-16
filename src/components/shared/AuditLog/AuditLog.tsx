@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Clock, User, FileText, Move, Check } from "lucide-react";
 
@@ -6,74 +5,87 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fmtDateTime } from "@/lib/date";
 
-import { loadAuditLog, auditLogStorage } from "./storage";
-import type { AuditEntry, AuditAction } from "./types";
+import { useAuditoria } from "@/integrations/supabase/hooks/useAuditoria";
 
-const actionLabels: Record<AuditAction, string> = {
+const actionLabels: Record<string, string> = {
   mark_read: "Marcou como lida",
   move_task: "Moveu tarefa",
-  approve: "Aprovou notificação",
-  reject: "Rejeitou notificação",
+  approve: "Aprovou notificaÃ§Ã£o",
+  reject: "Rejeitou notificaÃ§Ã£o",
   entrada_xml: "Registrou entrada XML",
   baixa_manual: "Registrou baixa manual",
+  create: "Criou",
+  update: "Atualizou",
+  delete: "Deletou",
 };
 
-const actionIcons: Record<AuditAction, ReactNode> = {
+const actionIcons: Record<string, ReactNode> = {
   mark_read: <Check className="h-4 w-4" />,
   move_task: <Move className="h-4 w-4" />,
   approve: <Check className="h-4 w-4" />,
   reject: <FileText className="h-4 w-4" />,
   entrada_xml: <FileText className="h-4 w-4" />,
   baixa_manual: <FileText className="h-4 w-4" />,
+  create: <FileText className="h-4 w-4" />,
+  update: <FileText className="h-4 w-4" />,
+  delete: <FileText className="h-4 w-4" />,
 };
 
-export function AuditLog({ className }: { className?: string }) {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
+export function AuditLog() {
+  const { data: entries = [], isLoading } = useAuditoria();
 
-  useEffect(() => {
-    setEntries(loadAuditLog());
-
-    const interval = window.setInterval(() => {
-      setEntries(loadAuditLog());
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, []);
+  if (isLoading) {
+    return (
+      <div className="space-y-2 p-4">
+        <div className="h-16 animate-pulse rounded bg-muted" />
+        <div className="h-16 animate-pulse rounded bg-muted" />
+        <div className="h-16 animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
 
   if (entries.length === 0) {
     return (
-      <div className={`text-sm text-muted-foreground ${className ?? ""}`}>
-        Nenhuma ação registrada ainda.
+      <div className="p-4 text-center text-sm text-muted-foreground">
+        Nenhuma atividade registrada
       </div>
     );
   }
 
   return (
-    <ScrollArea className={`h-96 ${className ?? ""}`}>
-      <div className="space-y-2">
+    <ScrollArea className="h-[400px]">
+      <div className="space-y-2 p-4">
         {entries.map((entry) => (
-          <div key={entry.id} className="flex items-start gap-3 rounded-lg border p-3">
-            <div className="flex items-center gap-2 text-primary">
-              {actionIcons[entry.action]}
+          <div
+            key={entry.id}
+            className="flex items-start gap-3 rounded-lg border bg-card p-3 text-card-foreground shadow-sm transition-colors hover:bg-accent"
+          >
+            <div className="mt-1 flex-shrink-0 text-muted-foreground">
+              {actionIcons[entry.acao] || <FileText className="h-4 w-4" />}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-medium">
-                  {actionLabels[entry.action]}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {entry.entityType}
-                </Badge>
+
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {actionLabels[entry.acao] || entry.acao}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{entry.usuario}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>{fmtDateTime(new Date(entry.timestamp))}</span>
+                </div>
               </div>
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {entry.details}
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <User className="h-3 w-3" />
-                <span>{entry.user}</span>
-                <Clock className="ml-2 h-3 w-3" />
-                <span>{fmtDateTime(entry.timestamp)}</span>
-              </div>
+
+              {entry.detalhes && (
+                <p className="text-sm text-muted-foreground">{entry.detalhes}</p>
+              )}
             </div>
           </div>
         ))}
@@ -81,5 +93,3 @@ export function AuditLog({ className }: { className?: string }) {
     </ScrollArea>
   );
 }
-
-export const auditLogUtils = auditLogStorage;
