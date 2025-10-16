@@ -6,7 +6,7 @@ type Task = Database['public']['Tables']['tasks']['Row'];
 type Material = Database['public']['Tables']['materiais']['Row'];
 type Movimentacao = Database['public']['Tables']['movimentacoes']['Row'];
 
-export function exportToCSV<T extends Record<string, unknown>>(
+export function exportToCSV<T extends object>(
   data: T[],
   filename: string,
   columns?: (keyof T)[]
